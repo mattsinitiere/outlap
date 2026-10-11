@@ -64,6 +64,7 @@
   const fmtPts = p => (p == null ? "–" : Number.isInteger(p) ? String(p) : p.toFixed(1));
   const signed = (v, d = 3) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(d)}`;
   const ordinal = p => (p ? `P${p}` : "–");
+  const medal = p => (p >= 1 && p <= 3 ? `<span class="medal m${p}" title="${["Winner", "Second", "Third"][p - 1]}">P${p}</span>` : `P${p}`); // podium finishes as gold, silver, bronze
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   const shortDate = d => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const longDate = d => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
@@ -705,12 +706,12 @@
     const cd = $("#countdown", root); if (!cd) return null;
     const to = new Date(cd.dataset.to).getTime();
     const tick = () => {
-      const ms = Math.max(0, to - Date.now()), m = Math.floor(ms / 60000);
-      const v = { d: Math.floor(m / 1440), h: Math.floor((m % 1440) / 60), m: m % 60 };
-      $$("[data-u]", cd).forEach(b => { b.textContent = String(v[b.dataset.u]).padStart(2, "0"); });
+      const ms = Math.max(0, to - Date.now()), sec = Math.floor(ms / 1000), m = Math.floor(sec / 60);
+      const v = { d: Math.floor(m / 1440), h: Math.floor((m % 1440) / 60), m: m % 60, s: sec % 60 };
+      $$("[data-u]", cd).forEach(b => { const txt = String(v[b.dataset.u]).padStart(2, "0"); if (b.textContent !== txt) b.textContent = txt; });
       if (ms === 0) { clearInterval(t); render(); }
     };
-    const t = setInterval(tick, 15000); tick();
+    const t = setInterval(tick, 1000); tick();
     return () => clearInterval(t);
   }
   // The race weekend card: countdown, sessions in local time, layout. Used on Home and for upcoming rounds on Races.
@@ -720,13 +721,22 @@
     const upcoming = sess.find(x => x.at && x.at.getTime() > now);
     const race = sess[sess.length - 1];
     const live = sess.find(x => x.at && x.at.getTime() <= now && now < x.at.getTime() + (x.race ? 2.5 : 1.25) * 3600e3);
-    const target = upcoming?.at;
-    const lastWin = (() => {
+    // count down to the next session; without session times, to the start of race day in your time zone
+    const timed = sess.some(x => x.at), dayStart = new Date(`${r.date}T00:00:00`);
+    const target = upcoming?.at || (!timed && dayStart.getTime() > now ? dayStart : null);
+    const targetName = upcoming ? upcoming.n : "Race Day";
+    const targetWhen = upcoming?.at ? `${fmtWhen(upcoming.at, { weekday: "short" })} ${fmtWhen(upcoming.at, { hour: "numeric", minute: "2-digit" })}` : dayStart.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    const todayLocal = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in your time zone
+    const finished = !live && !target && (race.at ? now > race.at.getTime() : todayLocal > r.date);
+    const raceDayNoTime = !live && !target && !finished && !race.at && todayLocal === r.date;
+    // the last time this race was held: winner, pole and fastest lap
+    const last = (() => {
       const yrs = Object.keys(T[r.circuit]?.years || {}).map(Number).filter(v => v < y).sort((a, b) => b - a);
       if (!yrs.length) return null;
-      const yy = yrs[0], code = T[r.circuit].years[yy].winner;
+      const yy = yrs[0], t = T[r.circuit].years[yy];
       const pr = yy === y - 1 && prev ? prev.races.find(x => x.circuit === r.circuit && x.results.length) : null;
-      return { y: yy, name: pr ? prev.drivers[pr.results[0].d].name : code };
+      const fl = pr?.results.find(x => x.flr === 1), code = d => prev.drivers[d]?.code || "";
+      return { y: yy, winner: pr ? lastName(prev, pr.results[0].d) : t.winner, pole: t.pole, poleBy: pr?.pole ? code(pr.pole.d) : "", fl: t.fastestLap, flBy: fl ? code(fl.d) : "", laps: pr?.results[0].laps };
     })();
     const firstDay = new Date(sess[0].d + "T12:00:00"), raceDay = new Date(r.date + "T12:00:00");
     const range = sess[0].d === r.date ? longDate(r.date) : `${firstDay.toLocaleDateString("en-US", { month: "short", day: "numeric" })} to ${raceDay.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
@@ -735,17 +745,23 @@
         <p class="nr-kicker">${live ? `<span class="live-dot"></span>${esc(live.n)} Live Now` : `${isNext ? "Next Race, " : ""}Round ${r.round} of ${total}`}</p>
         <h2 class="nr-name">${esc(r.name)}</h2>
         <p class="nr-where"><a href="#/circuit/${r.circuit}">${esc(r.circuitName)}</a>, ${esc(r.locality)}, ${esc(range)}</p>
-        ${target ? `<div class="cd" id="countdown" data-to="${target.toISOString()}" aria-label="Time until ${esc(upcoming.n)}">
-          <div><b data-u="d">–</b><span>Days</span></div><div><b data-u="h">–</b><span>Hours</span></div><div><b data-u="m">–</b><span>Minutes</span></div>
-          <p class="cd-what">Until ${esc(upcoming.n)}</p></div>` : live ? "" : `<p class="cd-what">${race.at ? "" : "Session times arrive with the next data refresh."}</p>`}
+        ${target ? `<div class="cd" id="countdown" data-to="${target.toISOString()}" role="timer" aria-label="Time until ${esc(targetName)}">
+          <div class="cd-units"><div><b data-u="d">–</b><span>Days</span></div><div><b data-u="h">–</b><span>Hours</span></div><div><b data-u="m">–</b><span>Minutes</span></div><div><b data-u="s">–</b><span>Seconds</span></div></div>
+          <p class="cd-what">Until <b>${esc(targetName)}</b><span>${esc(targetWhen)}</span></p></div>`
+          : finished ? `<p class="cd-done">Race finished. Results arrive with the next data refresh.</p>`
+          : raceDayNoTime ? `<p class="cd-done">It's race day. The start time arrives with the next data refresh.</p>` : ""}
         <ol class="sessions">${sess.map(x => {
           const state = x.at ? (x === live ? "live" : x.at.getTime() < now ? "past" : x === upcoming ? "next" : "") : "";
           const when = x.at ? `${fmtWhen(x.at, { weekday: "short" })} ${fmtWhen(x.at, { hour: "numeric", minute: "2-digit" })}` : new Date(x.d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
           return `<li class="${state}"><span>${esc(x.n)}</span><b>${esc(when)}</b></li>`; }).join("")}</ol>
-        ${sess.some(x => x.at) ? `<p class="nr-note">Times shown in your time zone.</p>` : ""}
+        ${last ? `<div class="nr-last"><span class="nr-last-h">${last.y} Here</span>
+          <div><span>Winner</span><b>${esc(last.winner || "–")}</b></div>
+          ${last.pole ? `<div><span>Pole</span><b>${fmtLap(last.pole)}</b>${last.poleBy ? `<em>${esc(last.poleBy)}</em>` : ""}</div>` : ""}
+          ${last.fl ? `<div><span>Fastest Lap</span><b>${fmtLap(last.fl)}</b>${last.flBy ? `<em>${esc(last.flBy)}</em>` : ""}</div>` : ""}</div>` : ""}
+        <p class="nr-note">${timed ? "Times shown in your time zone." : target ? "Session times arrive with the next data refresh; until then the countdown runs to race day." : ""}</p>
       </div>
       <a class="nr-map" href="#/circuit/${r.circuit}" aria-label="${esc(r.circuitName)} Layout">${c.x ? outlineSvg(c, { color: "#FFFFFF", pad: 0.06 }) : ""}
-        <span class="nr-facts">${c.x ? `<span><b>${U.lapNum(lapKm(c))}</b> ${U.lapUnit()} Lap</span>` : ""}${(c.corners || []).length || c.facts?.turns ? `<span><b>${esc((c.corners || []).length || c.facts.turns)}</b> Turns</span>` : ""}${lastWin ? `<span>${lastWin.y} Winner <b>${esc(lastWin.name)}</b></span>` : ""}</span></a>
+        <span class="nr-facts">${c.x ? `<span><b>${U.lapNum(lapKm(c))}</b> ${U.lapUnit()} Lap</span>` : ""}${(c.corners || []).length || c.facts?.turns ? `<span><b>${esc((c.corners || []).length || c.facts.turns)}</b> Turns</span>` : ""}${last?.laps ? `<span><b>${last.laps}</b> Laps</span>` : ""}${c.firstGp ? `<span>First GP <b>${esc(c.firstGp)}</b></span>` : ""}</span></a>
     </section>`;
   }
   async function homeView(_, q) {
@@ -1585,7 +1601,7 @@
         <div class="table-wrap"><table>
           <thead><tr><th>Round</th><th>Race</th><th class="r">Grid</th><th class="r">Finish</th><th class="r hide-sm">+/−</th><th class="hide-sm">Status</th><th class="r">Points</th></tr></thead>
           <tbody>${H.rows.map(({ r, x }) => { const g = x.grid ? x.grid - x.pos : null; return `<tr data-href="#/races?y=${y}&r=${r.round}"><td class="muted">${r.round}</td><td><b style="font-weight:600">${esc(r.name.replace(" Grand Prix", ""))}</b></td><td class="r">${x.grid || "Pit"}</td>
-            <td class="r num pts">${x.pos}</td><td class="r hide-sm ${g > 0 ? "up" : g < 0 ? "down" : ""}">${g == null ? "" : g > 0 ? `+${g}` : g === 0 ? "–" : `−${-g}`}</td><td class="muted small hide-sm">${esc(x.st)}</td><td class="r">${x.pts ? fmtPts(x.pts) : ""}</td></tr>`; }).join("")}</tbody></table></div>
+            <td class="r">${medal(x.pos)}</td><td class="r hide-sm ${g > 0 ? "up" : g < 0 ? "down" : ""}">${g == null ? "" : g > 0 ? `+${g}` : g === 0 ? "–" : `−${-g}`}</td><td class="muted small hide-sm">${esc(x.st)}</td><td class="r">${x.pts ? fmtPts(x.pts) : ""}</td></tr>`; }).join("")}</tbody></table></div>
       </section>
       ${gallery.length ? `<section class="card"><div class="card-head"><h2>Photos</h2></div>
         <div class="gallery">${gallery.map(p => `<figure class="g-item"><a class="g-ph" href="${esc(p.page)}" target="_blank" rel="noopener">${imgTag([p.img], d.name)}</a><figcaption>${esc(p.credit)}${p.license ? `, ${esc(p.license)}` : ""}</figcaption></figure>`).join("")}</div></section>` : ""}`;
@@ -1782,7 +1798,7 @@
           <section class="card"><h2 style="margin-bottom:8px">${y} Season Results</h2><div class="table-wrap"><table>
             <thead><tr><th>Round</th><th>Race</th>${t.drivers.map(d => `<th class="r">${esc(s.drivers[d].code)}</th>`).join("")}<th class="r">Points</th></tr></thead>
             <tbody>${raceRows.map(({ r, xs }) => `<tr data-href="#/races?y=${y}&r=${r.round}"><td class="muted">${r.round}</td><td><b style="font-weight:600">${esc(r.name.replace(" Grand Prix", ""))}</b></td>
-              ${t.drivers.map(d => { const x = xs.find(z => z.d === d); return `<td class="r ${x && x.pos <= 3 ? "num pts" : ""}">${x ? (/Finished|Lap/.test(x.st) ? `P${x.pos}` : "DNF") : ""}</td>`; }).join("")}
+              ${t.drivers.map(d => { const x = xs.find(z => z.d === d); return `<td class="r">${x ? (/Finished|Lap/.test(x.st) ? medal(x.pos) : "DNF") : ""}</td>`; }).join("")}
               <td class="r">${fmtPts(xs.reduce((a, x) => a + x.pts, 0))}</td></tr>`).join("")}</tbody></table></div></section>
         </div>
         <div class="stack">
