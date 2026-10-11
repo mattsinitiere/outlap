@@ -36,15 +36,20 @@ SKIP_TITLES = re.compile(r"season|Championship|Grand Prix|list of|in Formula One
 
 
 def api(url, **params):
+    """GET a MediaWiki API; backs off on rate limits and returns {} if it keeps failing (the caller skips that item)."""
     params.update(format="json", formatversion=2)
-    for i in range(5):
-        r = S.get(url, params=params, timeout=40)
-        if r.status_code == 429:
-            time.sleep(5 * (i + 1)); continue
-        r.raise_for_status()
-        time.sleep(0.2)
-        return r.json()
-    raise RuntimeError(url)
+    for i in range(6):
+        try:
+            r = S.get(url, params=params, timeout=40)
+            if r.status_code == 429 or r.status_code >= 500:
+                time.sleep(min(60, 5 * 2 ** i)); continue
+            r.raise_for_status()
+            time.sleep(0.5)
+            return r.json()
+        except (requests.RequestException, ValueError):
+            time.sleep(min(60, 5 * 2 ** i))
+    print(f"  gave up on {url} {params.get('srsearch') or params.get('titles', '')[:60]}")
+    return {}
 
 
 def title_from_url(u):
@@ -57,7 +62,7 @@ def page_images(titles, size):
     for i in range(0, len(titles), 40):
         d = api(WIKI, action="query", prop="pageimages", piprop="thumbnail|name",
                 pithumbsize=size, pilicense="free", redirects=1, titles="|".join(titles[i:i + 40]))
-        q = d["query"]
+        q = d.get("query", {})
         alias = {r["to"]: r["from"] for r in q.get("redirects", []) + q.get("normalized", [])}
         for p in q.get("pages", []):
             if "thumbnail" in p:
@@ -75,7 +80,7 @@ def credits(files):
     for i in range(0, len(files), 40):
         d = api(COMMONS, action="query", prop="imageinfo", iiprop="extmetadata|url",
                 titles="|".join("File:" + f for f in files[i:i + 40]))
-        for p in d["query"].get("pages", []):
+        for p in d.get("query", {}).get("pages", []):
             info = (p.get("imageinfo") or [{}])[0]
             m = info.get("extmetadata", {})
             artist = re.sub(r"<[^>]+>", "", m.get("Artist", {}).get("value", "")).strip()
@@ -88,7 +93,7 @@ def credits(files):
 
 def search_title(query):
     d = api(WIKI, action="query", list="search", srsearch=query, srlimit=5)
-    for r in d["query"]["search"]:
+    for r in d.get("query", {}).get("search", []):
         if not SKIP_TITLES.search(r["title"]):
             return r["title"]
     return None

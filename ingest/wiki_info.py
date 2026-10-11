@@ -2,7 +2,8 @@
 
   drivers  Wikipedia summary (bio), plus birthplace and height from the infobox
   teams    Wikipedia summary, plus base, team principal, technical director,
-           founder and first entry from the infobox
+           founder and first entry from the infobox, and team photos (garage,
+           pit stops) from Wikimedia Commons
   cars     Wikipedia summary for each car, its spec sheet from the infobox
            (designer, engine, power, weight, transmission, tyres, debut and so on)
            and a photo gallery from Wikimedia Commons
@@ -98,6 +99,20 @@ def main():
         summ = wiki_summary(t) or {}
         info["teams"][cid] = dict(about=summ.get("text"), url=summ.get("url"), facts=fields(wikitext(t), TEAM_FIELDS))
         print("team", cid)
+    write("info.json", info)
+
+    # Team photos (garage, pit stops, the team at work) from Wikimedia Commons, once per team
+    for cid, c in teams.items():
+        entry = info["teams"].setdefault(cid, {})
+        if entry.get("photos") is not None and not force:
+            continue
+        seen, photos = set(), []
+        for q in (f"{c['name']} Formula One team garage", f"{c['name']} Formula One pit stop", f"{c['name']} Formula One team"):
+            for ph in commons_photos(q, n=8, min_w=1000):
+                if ph["page"] not in seen:
+                    seen.add(ph["page"]); photos.append(ph)
+        entry["photos"] = photos[:8]
+        print("team photos", cid, len(entry["photos"]))
     write("info.json", info)
 
     for y, row in media.get("cars", {}).items():
