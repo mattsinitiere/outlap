@@ -45,6 +45,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- Clean web addresses: no more `#` in links. Pages live at readable paths like
+  `/drivers/max-verstappen/2024`, `/races/2026/singapore-grand-prix`,
+  `/teams/red-bull`, `/cars/2025/ferrari`, `/circuits/monza` and
+  `/telemetry/2023/italian-grand-prix/ver-vs-per`. Old `#/` links and home-screen
+  shortcuts still work and switch to the new address. Locally, run
+  `python serve.py` (plain `http.server` can't answer these addresses).
 - Telemetry picker rebuilt. Season tabs and a strip of every round drawn as its
   track layout replace the race dropdown (rounds without telemetry are greyed
   out). Drivers appear as chips ranked by lap time with the gap to the fastest;

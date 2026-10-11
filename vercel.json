@@ -2,6 +2,20 @@
   "outputDirectory": "web",
   "cleanUrls": true,
   "headers": [
-    { "source": "/data/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] }
+    {
+      "source": "/data/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/((?!data/|brand/|icons/).*)",
+      "destination": "/index.html"
+    }
   ]
 }
