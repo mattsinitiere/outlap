@@ -72,6 +72,7 @@
   const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
   const mix = (h, t, f) => { const a = hexRgb(h), b = hexRgb(t); return "#" + a.map((v, i) => Math.round(v + (b[i] - v) * f).toString(16).padStart(2, "0")).join(""); };
   const dark = h => mix(h, "#0B1020", 0.42);
+  const textOn = h => { const [r, g, b] = hexRgb(h).map(v => v / 255); return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? "#0F1218" : "#FFFFFF"; }; // readable text on a colour
   const tint = h => mix(h, "#FFFFFF", 0.82);
   function ramp(stops, t) {
     t = clamp(t, 0, 1) * (stops.length - 1);
@@ -383,6 +384,17 @@
   document.addEventListener("click", e => { if (e.target.closest("[data-open-settings]")) { e.preventDefault(); openSettings(); } });
   $("#settings").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
+  // Launch screen: on screen at least 1 s (so its animation plays) and gone by about 3 s (2.6 s plus the fade), counted from page start
+  const BOOT_MIN = 1000, BOOT_MAX = 2600;
+  function hideBoot(force) {
+    const boot = document.getElementById("boot");
+    if (!boot || boot.dataset.leaving) return;
+    const wait = force ? 0 : Math.max(0, BOOT_MIN - performance.now());
+    boot.dataset.leaving = "1";
+    setTimeout(() => { boot.classList.add("gone"); setTimeout(() => boot.remove(), 500); }, wait);
+  }
+  setTimeout(() => hideBoot(true), Math.max(0, BOOT_MAX - performance.now()));
+
   // ===================================================================
   // Routing and rendering
   // ===================================================================
@@ -605,8 +617,7 @@
       if (pageChange) { window.scrollTo(0, 0); countUp(root); }
     };
     lastKey = key;
-    const boot = document.getElementById("boot");
-    if (boot) { boot.classList.add("gone"); setTimeout(() => boot.remove(), 450); }
+    hideBoot();
     if (pageChange && document.startViewTransition && motionOK() && !view.querySelector(".skeleton")) document.startViewTransition(apply);
     else apply();
     progress.done();
@@ -977,7 +988,7 @@
       const role = d.code === a ? "a" : d.code === b ? "b" : "";
       return `<button type="button" class="tp-chip${role ? ` is-${role}` : ""}${k >= 10 ? " extra" : ""}" data-code="${esc(d.code)}" aria-pressed="${!!role}" style="--c:${chipCol(d)}">
         <span class="tp-k">${k + 1}</span><span class="tp-n"><b>${esc(d.code)}</b><span>${esc(ln(d.code))}</span></span>
-        <span class="tp-l"><b>${fmtLap(d.lap)}</b><span>${k ? `+${(d.lap - fastest).toFixed(3)}` : "Fastest"}</span></span>${role ? `<span class="tp-role" style="background:${role === "a" ? colA : colB}">${role.toUpperCase()}</span>` : ""}</button>`;
+        <span class="tp-l"><b>${fmtLap(d.lap)}</b><span>${k ? `+${(d.lap - fastest).toFixed(3)}` : "Fastest"}</span></span>${role ? `<span class="tp-role" style="background:${role === "a" ? colA : colB};color:${textOn(role === "a" ? colA : colB)}">${role.toUpperCase()}</span>` : ""}</button>`;
     }).join("");
     const mate = (() => { const c0 = cA || A.team; return tel.drivers.find(d => d.code !== a && ((idOf(d.code) && teamOf(s, idOf(d.code)) === c0) || (!idOf(d.code) && d.team === A.team))); })();
     const slot = (key, D, col, label) => `<button type="button" class="tp-slot" data-slot="${key}" aria-pressed="${telSlot === key}" style="--c:${col || "#C9CDD5"}">
@@ -1232,7 +1243,7 @@
           </div></div>
           <div class="grid-2">
             <section class="card"><div class="card-head"><h2>Grid to Finish</h2></div><div id="slope"></div>
-              <div class="legend" style="margin-top:8px"><span><svg width="28" height="8" aria-hidden="true"><line x1="1" y1="4" x2="27" y2="4" stroke="#0F1218" stroke-width="2.5"/></svg> Finished</span><span><svg width="28" height="8" aria-hidden="true"><line x1="1" y1="4" x2="27" y2="4" stroke="#0F1218" stroke-width="2.5" stroke-dasharray="4 4"/></svg> Retired</span><span class="tiny">Hover a line to follow one driver</span></div></section>
+              <div class="legend" style="margin-top:8px"><span><svg width="28" height="8" aria-hidden="true"><line x1="1" y1="4" x2="27" y2="4" stroke="#0F1218" stroke-width="2.5"/></svg> Finished</span><span><svg width="28" height="8" aria-hidden="true"><line x1="1" y1="4" x2="27" y2="4" stroke="#0F1218" stroke-width="2.5" stroke-dasharray="4 4"/></svg> Retired</span><span class="tiny">${matchMedia("(hover: none)").matches ? "Tap" : "Hover over"} a line to follow one driver</span></div></section>
             <section class="card"><h2 style="margin-bottom:6px">Race Notes</h2><div class="facts-grid one">${raceNotes.map(([k, v]) => `<div class="fact"><span>${k}</span><b>${v}</b></div>`).join("")}</div></section>
           </div>
           <section class="card"><h2 style="margin-bottom:8px">Race Results</h2><div class="table-wrap"><table>

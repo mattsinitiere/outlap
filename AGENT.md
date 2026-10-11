@@ -167,7 +167,8 @@ and watching the console for errors. Playwright screenshots work well for this.
   sector slashes (purple `#7A3FD1`, green `#1D9A5B`, yellow `#F2B01E`) + `LAP`, in
   Barlow Condensed ExtraBold Italic, outlined. Rules are in `brand/BRAND.md`.
 - Where it appears: the slash mark at the top of the desktop rail, the wordmark in the
-  phone app bar, the boot loader, Settings, empty states, favicon and app icons.
+  phone app bar, the launch screen (`#boot`: shown on every open for 1 to about 3 s,
+  timing in `hideBoot()` in app.js, animation in styles.css), Settings, empty states, favicon and app icons.
   The tab icon (`web/icons/favicon.svg`) switches to a white tile in light mode; the
   iPhone icon (`icon-180.png`) must stay a full opaque square (iOS rounds it).
   The progress bar uses the three sector colours.
@@ -221,6 +222,10 @@ the formula, update this table and the explanation text on the driver profile.
 `styles.css` grew in layers; later blocks override earlier ones (look for the
 "UX pass" and "more info blocks" banners). When changing a rule, search the whole
 file for the selector first. Consolidating the layers is a welcome cleanup.
+
+**Hover:** put every `:hover` rule inside `@media (hover: hover)` and exclude selected
+states (`:not(.on)`, `:not([aria-current="true"])`). Phones keep the last tapped
+element in `:hover`, so a hover style that beats a selected style makes it vanish.
 
 ## Data sources and limits
 
