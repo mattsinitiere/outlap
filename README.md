@@ -91,7 +91,7 @@ samples about four times a second.
 ```
 ingest/
   build_data.py        Jolpica + OpenF1 → web/data
-  backfill_fastf1.py   FastF1 telemetry for 2018–2022 (run locally, once)
+  backfill_fastf1.py   FastF1 telemetry, tyres and Safety Car periods for 2018–2022 (run locally, once)
   media.py             Headshots, logos, car photos, galleries → web/data/media.json
   circuits.py          Layouts, turns, elevation, facts, photos → web/data/circuits.json
   wiki_info.py         Driver bios, team facts, car specs and galleries → web/data/info.json
@@ -124,7 +124,8 @@ CI blocks code changes that skip it.
    python -m venv .venv && source .venv/bin/activate
    pip install -r ingest/requirements.txt
    python ingest/build_data.py        # 1.5–3 hours; resumable, safe to re-run
-   python ingest/backfill_fastf1.py   # 2018–2022 telemetry, a few hours, once; safe to stop and re-run
+   python ingest/backfill_fastf1.py   # 2018–2022 telemetry and tyres, a few hours, once; safe to stop and re-run
+                                      # (add --push to merge with the latest data on GitHub and push)
    python ingest/media.py             # 10–15 minutes
    python ingest/circuits.py          # about 10 minutes; resumable
    python ingest/wiki_info.py         # about 10 minutes; resumable

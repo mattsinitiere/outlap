@@ -3,6 +3,8 @@ and (2023 onward) tyre stints, sector times, speed-trap readings and Safety Car 
 
   Jolpica: lap times, positions and pit stops, 2018 onward (about 15 requests a race)
   OpenF1:  stints, sectors, speed traps, race control messages, 2023 onward (4 requests a race)
+  FastF1:  the same extras for 2018-2022, from backfill_fastf1.py on your own computer. It merges
+           them into existing files, or leaves them in laps/fastf1/ for this script to merge later.
 
 Writes web/data/laps/YYYY_RR.json plus laps/index.json. Standard library only, so the
 refresh workflow runs it on every pass. It's resumable: races that already have a file
@@ -233,6 +235,46 @@ def add_openf1(season, race, data):
         data["src"].append("OpenF1")
 
 
+# ---------- FastF1 extras (2018-2022, written by backfill_fastf1.py) ----------
+
+EXTRAS = os.path.join(LAPS, "fastf1")
+
+
+def merge_extras(data, ex):
+    """Add tyre stints, sectors, speed traps and race-control periods from FastF1 to a lap file."""
+    for did, v in ex.get("drivers", {}).items():
+        d = data["drivers"].get(did)
+        if not d:
+            continue
+        n = len(d["t"])
+        fit = lambda a: (list(a) + [None] * n)[:n]
+        if v.get("st"):
+            d["st"] = [[c, a, min(b, n), age] for c, a, b, age in v["st"] if a <= n]
+        if v.get("sec"):
+            d["sec"] = [fit(x) for x in v["sec"]]
+        if v.get("trap"):
+            d["trap"] = fit(v["trap"])
+    if ex.get("flags") is not None:
+        data["flags"] = ex["flags"]
+    data["ff1"] = "ok"
+    if "FastF1" not in data["src"]:
+        data["src"].append("FastF1")
+
+
+def merge_pending_extras():
+    """Fold in FastF1 extras whose lap file exists now; returns how many were merged."""
+    done = 0
+    for name in sorted(os.listdir(EXTRAS)) if os.path.isdir(EXTRAS) else []:
+        path = os.path.join(LAPS, name)
+        data, ex = load(path), load(os.path.join(EXTRAS, name))
+        if data and ex:
+            merge_extras(data, ex)
+            write(path, data)
+            os.remove(os.path.join(EXTRAS, name))
+            done += 1
+    return done
+
+
 # ---------- main ----------
 
 def build_index():
@@ -276,6 +318,9 @@ def main():
                 todo.append((season, race, path, None))
             elif y >= OPENF1_FROM and (have.get("of1") is None or (a.refresh_openf1 and have.get("of1") != "ok")):
                 todo.append((season, race, path, have))
+    merged = merge_pending_extras()
+    if merged:
+        print(f"Merged FastF1 tyres and flags into {merged} race(s)")
     print(f"{len(todo)} race(s) to do")
     done = 0
     openf1_ok = True
@@ -299,6 +344,10 @@ def main():
                     raise
                 except Exception as e:  # noqa: BLE001 - keep the Jolpica part
                     print(f"  OpenF1 failed for {label}: {e}")
+            ex = load(os.path.join(EXTRAS, os.path.basename(path)))
+            if ex and data.get("ff1") != "ok":
+                merge_extras(data, ex)
+                os.remove(os.path.join(EXTRAS, os.path.basename(path)))
             write(path, data)
             done += 1
     except OutOfTime:
