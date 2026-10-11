@@ -45,6 +45,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- Telemetry picker rebuilt. Season tabs and a strip of every round drawn as its
+  track layout replace the race dropdown (rounds without telemetry are greyed
+  out). Drivers appear as chips ranked by lap time with the gap to the fastest;
+  tap the Driver or Compare With slot, then a chip. Swap, Teammate and Solo
+  buttons do the common comparisons in one tap.
 - Navigation: Home and News join the rail. On phones the tab bar is Home,
   Telemetry, Standings and Drivers, with everything else under More.
 - Long data refreshes save their progress: if building seasons runs out of time,

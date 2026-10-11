@@ -748,8 +748,9 @@
     return { top: Math.max(...D.spd), min: Math.min(...D.spd), full: D.thr.filter(v => v >= 98).length / n, brake: D.brk.filter(Boolean).length / n, brakeG: Math.abs(Math.min(...D.gx)), latG: Math.max(...D.gy.map(Math.abs)) };
   }
 
+  let telSlot = "b"; // which picker slot the next driver tap fills
   async function telemetryView(_, q) {
-    const index = await telIndex();
+    const [index, C] = await Promise.all([telIndex(), circuitsData()]);
     if (!index.length) return { html: `<div class="empty"><img class="empty-mark" src="brand/outlap-mark.svg" alt=""><h3>No Lap Telemetry Yet</h3><p>Run <code>python ingest/build_data.py</code> to download lap telemetry from OpenF1 (2023 onward) and <code>python ingest/backfill_fastf1.py</code> on your own computer for 2018 to 2022.</p></div>` };
     const file = index.find(i => i.file === q.get("f")) ? q.get("f") : index[index.length - 1].file;
     const entry = index.find(i => i.file === file);
@@ -809,9 +810,37 @@
     const secA = official ? A.sectors : thirds(A), secB = B ? (official ? B.sectors : thirds(B)) : null;
     const secMax = B ? Math.max(...secA.map((v, k) => Math.abs(v - secB[k])), 0.05) : 1;
 
+    // picker: season tabs, a strip of tracks, then driver chips ranked by lap time
     const years = [...new Set(index.map(i => i.year))].sort((x, y) => y - x);
-    const racePick = `<select class="pick" id="race" aria-label="Race">${years.map(y => `<optgroup label="${y}">${index.filter(i => i.year === y).slice().reverse().map(i => `<option value="${i.file}"${i.file === file ? " selected" : ""}>${y} ${esc(i.name)}</option>`).join("")}</optgroup>`).join("")}</select>`;
-    const drvOpt = (sel, none) => (none ? `<option value="none"${!sel ? " selected" : ""}>No Comparison</option>` : "") + tel.drivers.map(d => `<option value="${d.code}"${d.code === sel ? " selected" : ""}>${esc(nm(d.code))}, ${fmtLap(d.lap)}</option>`).join("");
+    const byRound = new Map(index.filter(i => i.year === entry.year).map(i => [i.round, i]));
+    const tracks = s.races.map(r => {
+      const t = byRound.get(r.round), c = C[r.circuit], on = t && t.file === file;
+      return `<button type="button" class="tp-track${on ? " on" : ""}"${t ? ` data-f="${t.file}"` : " disabled"} aria-pressed="${!!on}" title="${esc(r.name)}${t ? "" : ", No Telemetry Yet"}">
+        <span class="tp-map">${c?.x ? outlineSvg(c, { thin: true, pad: 0.12, color: "currentColor" }) : ""}</span>
+        <span class="tp-rnd">R${r.round}</span><b>${esc(r.name.replace(/ Grand Prix.*$/, "").replace(/^Grand Prix of /, ""))}</b></button>`;
+    }).join("");
+    const ranked = tel.drivers.slice().sort((x, y) => x.lap - y.lap), fastest = ranked[0].lap;
+    const chipCol = d => d.color || teamColor(idOf(d.code) ? teamOf(s, idOf(d.code)) : null);
+    const chips = ranked.map((d, k) => {
+      const role = d.code === a ? "a" : d.code === b ? "b" : "";
+      return `<button type="button" class="tp-chip${role ? ` is-${role}` : ""}${k >= 10 ? " extra" : ""}" data-code="${esc(d.code)}" aria-pressed="${!!role}" style="--c:${chipCol(d)}">
+        <span class="tp-k">${k + 1}</span><span class="tp-n"><b>${esc(d.code)}</b><span>${esc(ln(d.code))}</span></span>
+        <span class="tp-l"><b>${fmtLap(d.lap)}</b><span>${k ? `+${(d.lap - fastest).toFixed(3)}` : "Fastest"}</span></span>${role ? `<span class="tp-role" style="background:${role === "a" ? colA : colB}">${role.toUpperCase()}</span>` : ""}</button>`;
+    }).join("");
+    const mate = (() => { const c0 = cA || A.team; return tel.drivers.find(d => d.code !== a && ((idOf(d.code) && teamOf(s, idOf(d.code)) === c0) || (!idOf(d.code) && d.team === A.team))); })();
+    const slot = (key, D, col, label) => `<button type="button" class="tp-slot" data-slot="${key}" aria-pressed="${telSlot === key}" style="--c:${col || "#C9CDD5"}">
+      <span class="tp-sl">${label}</span><b>${D ? esc(nm(D.code)) : "No Comparison"}</b><span>${D ? `${fmtLap(D.lap)}, Lap ${D.lapNo}` : "Solo Lap"}</span></button>`;
+    const picker = `<section class="card tpick">
+      <div class="tp-top">${years.length > 1 ? seg("tpYear", years.map(y => [String(y), String(y)]), String(entry.year), "Season") : `<b class="tp-year">${entry.year}</b>`}
+        <span class="tiny muted">${plural(byRound.size, "race", "races")} with lap telemetry this season</span></div>
+      <div class="tp-tracks" id="tpTracks">${tracks}</div>
+      <div class="tp-drivers">
+        <div class="tp-slots">${slot("a", A, colA, "Driver")}
+          <div class="tp-acts"><button type="button" class="btn sm" id="tpSwap"${B ? "" : " disabled"}>Swap</button>${mate ? `<button type="button" class="btn sm" id="tpMate" data-code="${esc(mate.code)}">Teammate</button>` : ""}${B ? `<button type="button" class="btn sm" id="tpSolo">Solo</button>` : ""}</div>
+          ${slot("b", B, colB, "Compare With")}</div>
+        <div class="tp-chips" id="tpChips">${chips}</div>
+        ${ranked.length > 10 ? `<button type="button" class="link small tp-all" id="tpAll">Show All ${ranked.length} Drivers</button>` : ""}
+      </div></section>`;
 
     const side = (D, did, cid, col, right) => {
       const shot = did ? portrait([bigHeadshot(D.headshot), D.headshot, ...photoUrls(did, s, true)], s.drivers[did].name, right ? "ht-right" : "ht-left") : "";
@@ -829,8 +858,8 @@
     const html = `
       <div class="page-head">
         <div><p class="kicker"><a href="#/races?y=${entry.year}&r=${entry.round}">${entry.year} Round ${entry.round}</a></p><h1>${esc(tel.name)}</h1></div>
-        <div class="controls">${racePick}<select class="pick" id="drvA" aria-label="Driver">${drvOpt(a)}</select><select class="pick" id="drvB" aria-label="Compare With">${drvOpt(b, true)}</select></div>
       </div>
+      ${picker}
       <section class="hero${B ? "" : " solo"}">${side(A, dA, cA, colA, false)}${B ? side(B, dB, cB, colB, true) : ""}${gapChip}</section>
       <div class="split-main">
         <section class="card map">
@@ -884,9 +913,22 @@
     return {
       html,
       mount(root, ctx) {
-        onChange(root, "#race", v => setQuery({ f: v, a: null, b: null }));
-        onChange(root, "#drvA", v => setQuery({ a: v }));
-        onChange(root, "#drvB", v => setQuery({ b: v }));
+        $$("[data-f]", root).forEach(el => (el.onclick = () => setQuery({ f: el.dataset.f, a: null, b: null })));
+        onSeg(root, "#tpYear", v => { const last = index.filter(i => i.year === +v).pop(); if (last) setQuery({ f: last.file, a: null, b: null }); });
+        const slots = $$(".tp-slot", root);
+        slots.forEach(el => (el.onclick = () => { telSlot = el.dataset.slot; slots.forEach(x => x.setAttribute("aria-pressed", x === el)); }));
+        $$(".tp-chip", root).forEach(el => (el.onclick = () => {
+          const code = el.dataset.code;
+          if (telSlot === "a") { telSlot = "b"; if (code !== a) setQuery({ a: code, b: code === b ? a : b || "none" }); else render(); }
+          else if (code === a) setQuery({ a: b || a, b: b ? a : "none" });
+          else setQuery({ b: code });
+        }));
+        const sw = $("#tpSwap", root); if (sw) sw.onclick = () => B && setQuery({ a: b, b: a });
+        const mt = $("#tpMate", root); if (mt) mt.onclick = () => setQuery({ b: mt.dataset.code });
+        const so = $("#tpSolo", root); if (so) so.onclick = () => setQuery({ b: "none" });
+        const all = $("#tpAll", root); if (all) all.onclick = () => { const on = $("#tpChips", root).classList.toggle("all"); all.textContent = on ? "Show Fewer" : `Show All ${ranked.length} Drivers`; };
+        const strip = $("#tpTracks", root), cur = $(".tp-track.on", root);
+        if (strip && cur && ctx.first) strip.scrollLeft = cur.offsetLeft - strip.clientWidth / 2 + cur.clientWidth / 2;
         onSeg(root, "#mapMode", v => setQuery({ m: v }));
         onSeg(root, "#chartMode", v => setQuery({ c: v }));
         const nameAt = i => { const c = corners.find(c => Math.abs(dist[c.i] - dist[i]) < 120); return c ? `, ${c.name}` : ""; };
