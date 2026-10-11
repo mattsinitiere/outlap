@@ -223,10 +223,9 @@
       const yf = cfg.yFmt || (v => Math.round(v)), xf = cfg.xFmt || (v => v);
       let g = "";
       (cfg.bands || []).forEach(b => { g += `<rect x="${X(b.x0)}" y="${T}" width="${Math.max(1, X(b.x1) - X(b.x0))}" height="${H - T - B}" fill="${b.fill || "#F4F5F7"}"/>`; });
-      for (let k = 0; k <= 4; k++) {
-        const v = lo + ((hi - lo) * k) / 4;
+      (cfg.yTicks || [0, 1, 2, 3, 4].map(k => lo + ((hi - lo) * k) / 4)).forEach(v => {
         g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#EEF0F3"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${esc(yf(v))}</text>`;
-      }
+      });
       if (cfg.zero && lo < 0 && hi > 0) g += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#9AA0AC"/>`;
       let ticks = cfg.xTicks || [0, .25, .5, .75, 1].map(f => xs[0] + (xs[n - 1] - xs[0]) * f);
       if (W < 420 && ticks.length > 5) ticks = ticks.filter((_, k) => k % 2 === 0 || k === ticks.length - 1);
@@ -240,9 +239,10 @@
           d += `${pen ? "L" : "M"}${px},${py}`; pen = true; if (first == null) first = px; last = px;
         });
         if (s.area && first != null) g += `<path class="ar" d="${d}L${last},${Y(cfg.yMin ?? lo)}L${first},${Y(cfg.yMin ?? lo)}Z" fill="${s.color}" fill-opacity="${s.area}"/>`;
-        g += `<path class="ln${s.dash ? " dash" : ""}" d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width || 2.2}" stroke-linejoin="round" stroke-linecap="round" ${s.dash ? 'stroke-dasharray="6 4"' : ""}/>`;
+        g += `<path class="ln${s.dash ? " dash" : ""}" d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width || 2.2}" stroke-linejoin="round" stroke-linecap="round" ${s.dash ? 'stroke-dasharray="6 4"' : ""}${s.opacity != null ? ` stroke-opacity="${s.opacity}"` : ""}/>`;
         if (cfg.dots) s.values.forEach((v, i) => { if (v != null) g += `<circle class="dt" cx="${X(xs[i])}" cy="${Y(v)}" r="4" fill="#fff" stroke="${s.color}" stroke-width="2.2"/>`; });
       });
+      (cfg.marks || []).forEach(m => { if (m.y != null) g += `<circle class="dt" cx="${X(m.x)}" cy="${Y(m.y)}" r="${m.r || 3.6}" fill="${m.fill || "#fff"}" stroke="${m.color}" stroke-width="2"/>`; });
       g += `<g class="cur"></g>`;
       svg.innerHTML = g;
       if (!drawn && cfg.animate && motionOK()) intro();
@@ -260,7 +260,7 @@
       cursor = i;
       const x = X(xs[i]);
       let g = `<line x1="${x}" x2="${x}" y1="${T}" y2="${H - B}" stroke="#0F1218" stroke-width="1"/>`;
-      cfg.series.forEach(s => { const v = s.values[i]; if (v != null && !isNaN(v)) g += `<circle cx="${x}" cy="${Y(v)}" r="4.5" fill="${s.color}" stroke="#fff" stroke-width="2"/>`; });
+      cfg.series.forEach(s => { const v = s.values[i]; if (v != null && !isNaN(v) && !s.quiet) g += `<circle cx="${x}" cy="${Y(v)}" r="4.5" fill="${s.color}" stroke="#fff" stroke-width="2"/>`; });
       const c = svg.querySelector(".cur"); if (c) c.innerHTML = g;
     }
     function showTip(i) {
@@ -269,7 +269,7 @@
         const v = s.values[i]; if (v == null || isNaN(v)) return "";
         return `<span class="r"><span><span class="swatch" style="background:${s.color}"></span>${esc(s.name)}</span><b>${esc(cfg.tipRow ? cfg.tipRow(s, i) : v)}</b></span>`;
       }).join("");
-      tip.innerHTML = `<span class="t">${esc(cfg.tipTitle ? cfg.tipTitle(i) : xs[i])}</span>${rows}${cfg.tipExtra ? cfg.tipExtra(i) || "" : ""}`;
+      tip.innerHTML = `<span class="t">${esc(cfg.tipTitle ? cfg.tipTitle(i) : xs[i])}</span>${cfg.tipHtml ? cfg.tipHtml(i) : rows}${cfg.tipExtra ? cfg.tipExtra(i) || "" : ""}`;
       tip.style.display = "flex";
       const tw = tip.offsetWidth, left = x + 16 + tw > W ? x - 16 - tw : x + 16;
       tip.style.left = `${clamp(left, 0, Math.max(0, W - tw))}px`; tip.style.top = `${T + 4}px`;
@@ -412,6 +412,7 @@
   const raceSlug = (y, round) => { const r = seasonSync[y]?.races.find(x => x.round === +round); return r ? nameSlug(r.name) : `round-${round}`; };
   const findRace = (races, rs) => races.find(x => nameSlug(x.name) === rs) || races.find(x => `round-${x.round}` === rs);
   const MAP_WORD = { faster: "faster", spd: "speed", thr: "throttle", brk: "brake", gear: "gear", gx: "braking-g", gy: "cornering-g" };
+  const LAP_WORD = { pos: "positions", pace: "pace", gap: "gaps", tyres: "strategy", cons: "consistency" };
   const CHART_WORD = { spd: "speed", thr: "throttle", gear: "gear", g: "g-force" };
   const flip = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [v, k]));
 
@@ -436,7 +437,9 @@
         break;
       }
       case "standings": p = `/standings${yr}${g("t") === "constructors" ? "/constructors" : ""}`; break;
-      case "races": p = `/races${yr}`; if (yr && (g("r") || g("rs"))) p += `/${g("r") ? raceSlug(g("y"), g("r")) : g("rs")}`; break;
+      case "races": p = `/races${yr}`; if (yr && (g("r") || g("rs"))) p += `/${g("r") ? raceSlug(g("y"), g("r")) : g("rs")}`;
+        if (LAP_WORD[g("lt")] && g("lt") !== "pos") qs.set("laps", LAP_WORD[g("lt")]); if (g("ld")) qs.set("drivers", g("ld")); if (g("lg")) qs.set("ref", g("lg"));
+        break;
       case "drivers": p = `/drivers${yr}`; if (g("sort")) qs.set("sort", g("sort")); break;
       case "driver": p = `/drivers/${slug(arg)}${yr}`; break;
       case "teams": p = `/teams${yr}`; break;
@@ -450,7 +453,7 @@
         if (g("k")) qs.set("type", g("k")); if (g("d")) qs.set("driver", slug(g("d"))); if (g("t")) qs.set("team", slug(g("t"))); if (g("s")) qs.set("source", g("s"));
         break;
     }
-    const s = qs.toString();
+    const s = qs.toString().replace(/%2C/g, ",");
     return p + (s ? `?${s}` : "");
   }
   function fromPath(pathname, search) {
@@ -469,7 +472,7 @@
         break;
       }
       case "standings": seg.slice(1).forEach(x => { if (YEAR.test(x)) set("y", x); else if (x === "constructors") set("t", x); }); break;
-      case "races": set("y", seg[1]); set("rs", seg[2]); break;
+      case "races": set("y", seg[1]); set("rs", seg[2]); set("lt", flip(LAP_WORD)[sp.get("laps")]); set("ld", sp.get("drivers")); set("lg", sp.get("ref")); break;
       case "drivers": case "teams":
         if (seg[1] && !YEAR.test(seg[1])) { name = top === "drivers" ? "driver" : "team"; arg = unslug(seg[1]); set("y", seg[2]); }
         else { set("y", seg[1]); set("sort", sp.get("sort")); }
@@ -931,6 +934,9 @@
     const b = q.get("b") === "none" ? null : codes.includes((q.get("b") || "").toUpperCase()) && q.get("b").toUpperCase() !== a ? q.get("b").toUpperCase() : codes.find(c => c !== a) || null;
     const A = tel.drivers.find(d => d.code === a), B = b ? tel.drivers.find(d => d.code === b) : null;
     const dA = idOf(a), dB = b ? idOf(b) : null;
+    const lapRace = s.races.find(r => r.round === entry.round);
+    const LT = B && lapRace?.results.length ? await lapsFor(entry.year, entry.round) : null;
+    const LR = LT ? raceLaps(LT, lapRace) : null, raceStrip = LR && LR.D[dA] && LR.D[dB];
     const cA = dA ? teamOf(s, dA) : null, cB = dB ? teamOf(s, dB) : null;
     const colA = A.color || teamColor(cA);
     let colB = B ? (B.color || teamColor(cB)) : null;
@@ -1075,7 +1081,10 @@
                 .map(([l, f]) => row3(l, f(sA), sB ? f(sB) : null)).join("")}
               <p class="tiny muted" style="margin-top:8px">Speeds in ${U.spdUnit()}. G values are estimates and read low.</p>
             </section>
-          </div>`;
+          </div>
+          ${raceStrip ? `<section class="card"><div class="card-head"><h2>The Whole Race</h2><a class="link small" href="#/races?y=${entry.year}&r=${entry.round}&lt=gap&ld=${a.toLowerCase()},${b.toLowerCase()}&lg=${a.toLowerCase()}">Full Lap by Lap</a></div>
+            <div id="raceGap"></div><div class="legend lap-legend"><span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4" fill="#fff" stroke="${colA}" stroke-width="2"/></svg>${esc(ln(a))} Pits</span><span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4" fill="#fff" stroke="${colB}" stroke-width="2"/></svg>${esc(ln(b))} Pits</span>${bandLegend(LR)}</div>
+            <p class="tiny muted">Gap each time they crossed the line; above zero means ${esc(ln(b))} is behind.</p></section>` : ""}`;
 
     return {
       html,
@@ -1113,6 +1122,17 @@
         cleanups.push(ch.destroy);
         const gch = B ? mountChart($("#gapChart", root), { xs: dist, series: [{ name: `${ln(b)} vs ${ln(a)}`, color: colB, values: gap, area: 0.1 }], height: 200, xFmt: U.axis, tipTitle: title, zero: true, yFmt: v => `${signed(v, 2)}s`, tipRow: (s2, i) => `${signed(s2.values[i], 2)}s`, onMove: i => setCursor(i, false, "gap"), label: "Gap Chart", animate: ctx.first }) : null;
         if (gch) cleanups.push(gch.destroy);
+        if (raceStrip) {
+          const XA = LR.D[dA], XB = LR.D[dB], xsL = Array.from({ length: LR.N }, (_, i) => i + 1);
+          const gapL = xsL.map((_, i) => (XA.cum[i] != null && XB.cum[i] != null ? XB.cum[i] - XA.cum[i] : null)), gv = gapL.filter(v => v != null);
+          const f = v => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}s`;
+          const lapTxt = (X, i) => (X.t[i] == null ? "–" : `${fmtLap(X.t[i])}${X.why[i] && X.why[i] !== "Lap 1" ? ` (${X.why[i]})` : ""}`);
+          const rch = mountChart($("#raceGap", root), { xs: xsL, series: [{ name: `${ln(b)} vs ${ln(a)}`, color: colB, values: gapL, area: 0.1, width: 2.4 }], height: 220, padL: 56, zero: true, ...niceScale(Math.min(0, ...gv), Math.max(0, ...gv)),
+            xTicks: lapTicks(LR.N), xFmt: v => `L${v}`, yFmt: f, bands: bandsFor(LR), label: "Race Gap", animate: ctx.first,
+            marks: [...XA.pit.map(([n2]) => ({ x: n2, y: gapL[n2 - 1], color: colA })), ...XB.pit.map(([n2]) => ({ x: n2, y: gapL[n2 - 1], color: colB }))],
+            tipTitle: i => `Lap ${i + 1}`, tipHtml: i => `<span class="r"><span><span class="swatch" style="background:${colA}"></span>${esc(ln(a))}</span><b>${lapTxt(XA, i)}</b></span><span class="r"><span><span class="swatch" style="background:${colB}"></span>${esc(ln(b))}</span><b>${lapTxt(XB, i)}</b></span>${gapL[i] != null ? `<span class="d">Gap ${f(gapL[i])}</span>` : ""}` });
+          cleanups.push(rch.destroy);
+        }
         const cA2 = $("#curA", root), cB2 = $("#curB", root), out = $("#readout", root);
         function setCursor(i, fromMap, from) {
           cA2.setAttribute("cx", xs[i]); cA2.setAttribute("cy", ys[i]);
@@ -1187,15 +1207,165 @@
   // ===================================================================
   // RACES
   // ===================================================================
+  // ===================================================================
+  // LAP BY LAP (race page card, and the race strip on the Telemetry page)
+  // ===================================================================
+  const lapsIndex = () => load("laps/index.json").catch(() => ({}));
+  const lapKey = (y, r) => `${y}_${String(r).padStart(2, "0")}`;
+  async function lapsFor(y, r) { const idx = await lapsIndex(); return idx[lapKey(y, r)] ? load(`laps/${lapKey(y, r)}.json`).catch(() => null) : null; }
+  const TYRE = { SOFT: ["#E8002D", "S", "Soft"], MEDIUM: ["#F2C200", "M", "Medium"], HARD: ["#E4E7EC", "H", "Hard"], INTERMEDIATE: ["#2FA84F", "I", "Intermediate"], WET: ["#1F6FD1", "W", "Wet"], UNKNOWN: ["#9AA0AC", "?", "Unknown"] };
+  const FLAG_BAND = { SC: ["#FFF1C7", "Safety Car"], VSC: ["#FFF8E3", "Virtual Safety Car"], RED: ["#FDE3E6", "Red Flag"], EST: ["#ECEEF2", "Slow Laps (Likely Safety Car)"] };
+  const FUEL_PER_LAP = 0.06; // seconds a lap gets quicker as fuel burns off; a typical figure, used to estimate tyre wear
+  const median = a => { const b = a.slice().sort((x, y) => x - y), m = b.length >> 1; return b.length ? (b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2) : null; };
+  const quant = (a, f) => { const b = a.slice().sort((x, y) => x - y), i = (b.length - 1) * f, lo = Math.floor(i); return b[lo] + (b[Math.ceil(i)] - b[lo]) * (i - lo); };
+  const stdev = a => { const m = a.reduce((x, y) => x + y, 0) / a.length; return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length); };
+  const slope = pts => { const n = pts.length, mx = pts.reduce((a, p) => a + p[0], 0) / n, my = pts.reduce((a, p) => a + p[1], 0) / n; const den = pts.reduce((a, p) => a + (p[0] - mx) ** 2, 0); return den ? pts.reduce((a, p) => a + (p[0] - mx) * (p[1] - my), 0) / den : 0; };
+
+  // Everything the lap charts share: cumulative times, neutralised laps, clean laps and stints per driver
+  function raceLaps(L, race) {
+    const N = L.laps, ids = Object.keys(L.drivers);
+    const order = race.results.map(r => r.d).filter(d => L.drivers[d]).concat(ids.filter(d => !race.results.some(r => r.d === d)));
+    const slow = new Set(), bands = [];
+    if (L.flags) L.flags.forEach(([k, a, b]) => { for (let n = a; n <= b; n++) slow.add(n); bands.push({ kind: k, a, b }); });
+    else { // no race control messages before 2023: a lap where the whole field ran 15% slower was almost certainly neutralised
+      const field = Array.from({ length: N }, (_, i) => median(ids.map(d => L.drivers[d].t[i]).filter(Boolean)));
+      const base = median(field.slice(1).filter(Boolean));
+      let st = null;
+      field.forEach((m, i) => { const n = i + 1, is = n > 1 && m > base * 1.15; if (is) slow.add(n); if (is && st == null) st = n; if (!is && st != null) { bands.push({ kind: "EST", a: st, b: n - 1 }); st = null; } });
+      if (st != null) bands.push({ kind: "EST", a: st, b: N });
+    }
+    const D = {};
+    ids.forEach(d => {
+      const v = L.drivers[d], res = race.results.find(r => r.d === d), pits = new Set(v.pit.map(p => p[0]));
+      let c = 0; const cum = v.t.map(t => (c = c == null || t == null ? null : c + t));
+      const why = v.t.map((t, i) => { const n = i + 1; return t == null ? "No Time" : n === 1 ? "Lap 1" : pits.has(n) ? "In Lap" : pits.has(n - 1) ? "Out Lap" : slow.has(n) ? (L.flags ? "Safety Car" : "Slow Lap") : slow.has(n - 1) ? "Restart" : null; });
+      const med = median(v.t.filter((t, i) => t && !why[i]));
+      v.t.forEach((t, i) => { if (!why[i] && med && t > med * 1.07) why[i] = "Off Pace"; });
+      const stints = v.st ? v.st.map(([c2, a, b, age]) => ({ tyre: TYRE[c2] ? c2 : "UNKNOWN", a, b, age }))
+        : [...v.pit.map(p => p[0]), v.t.length].reduce((acc, end) => { const a = acc.length ? acc[acc.length - 1].b + 1 : 1; if (end >= a) acc.push({ tyre: null, a, b: end, age: 0 }); return acc; }, []);
+      stints.forEach(st2 => { st2.pit = v.pit.find(p => p[0] === st2.b) || null; });
+      D[d] = { ...v, cum, why, clean: why.map(w => !w), stints, c: res?.c, grid: res?.grid, pos: res?.pos };
+    });
+    const lead = Array.from({ length: N }, (_, i) => Math.min(...ids.map(d => D[d].cum[i]).filter(v => v != null)));
+    return { N, order, D, slow, bands, est: !L.flags, lead, tyres: ids.some(d => L.drivers[d].st) };
+  }
+  // round axis steps (1, 2, 5 × 10^n) covering lo..hi
+  function niceScale(lo, hi, n = 4) {
+    const raw = (hi - lo) / n || 1, mag = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= raw);
+    const a = Math.floor(lo / step) * step, b = Math.ceil(hi / step) * step, ticks = [];
+    for (let v = a; v <= b + step / 2; v += step) ticks.push(+v.toFixed(6));
+    return { yMin: a, yMax: b, yTicks: ticks };
+  }
+  const lapTicks = (N, from = 1) => { const t = [from]; for (let k = 10; k < N - 3; k += 10) t.push(k); t.push(N); return t; };
+  const bandsFor = R => R.bands.map(b => ({ x0: b.a - 0.5, x1: b.b + 0.5, fill: FLAG_BAND[b.kind][0] }));
+  const bandLegend = R => { const kinds = [...new Set(R.bands.map(b => b.kind))]; return kinds.length ? kinds.map(k => `<span><i class="lg-band" style="background:${FLAG_BAND[k][0]}"></i>${FLAG_BAND[k][1]}</span>`).join("") : ""; };
+  const tyreChip = (t, age) => t ? `<span class="tyre" style="--t:${TYRE[t][0]}" title="${TYRE[t][2]}${age ? `, ${age} laps old at the start` : ""}">${TYRE[t][1]}</span>` : "";
+
+  const LAP_TABS = [["pos", "Positions"], ["pace", "Pace"], ["gap", "Gaps"], ["tyres", "Strategy"], ["cons", "Consistency"]];
+  function lapCard(L, R, race, s, q) {
+    const tab = LAP_TABS.some(([k]) => k === q.get("lt")) ? q.get("lt") : "pos";
+    const code = d => s.drivers[d]?.code || d.slice(0, 3).toUpperCase();
+    const byCode = Object.fromEntries(R.order.map(d => [code(d).toLowerCase(), d]));
+    let sel = (q.get("ld") || "").split(",").map(c => byCode[c]).filter(Boolean);
+    if (!sel.length) sel = R.order.slice(0, 3);
+    const ref = byCode[q.get("lg")] || null;
+    const chips = `<div class="lap-chips" role="group" aria-label="Drivers">${R.order.map(d => `<button type="button" data-d="${esc(code(d).toLowerCase())}" aria-pressed="${sel.includes(d)}" style="--c:${teamColor(R.D[d].c)}"><i></i>${esc(code(d))}</button>`).join("")}</div>`;
+    const tick = d => `<span class="lap-who"><i style="background:${teamColor(R.D[d].c)}"></i>${esc(code(d))}</span>`;
+    let body = "";
+    if (tab === "pos") body = `<div id="lapChart"></div><div class="legend lap-legend"><span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4" fill="#fff" stroke="#0F1218" stroke-width="2"/></svg>Pit Stop</span>${bandLegend(R)}</div>`;
+    if (tab === "pace") body = `<div id="lapChart"></div><div class="legend lap-legend">${bandLegend(R)}</div>
+      <p class="tiny muted">Lap 1, pit in and out laps, ${R.est ? "slow laps" : "Safety Car laps"} and laps more than 7% off a driver's usual pace are left out.</p>`;
+    if (tab === "gap") body = `<div id="lapChart"></div><div class="legend lap-legend"><span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4" fill="#fff" stroke="#0F1218" stroke-width="2"/></svg>Pit Stop</span>${bandLegend(R)}</div>
+      <p class="tiny muted">Time behind ${ref ? esc(s.drivers[ref].name) : "the leader"} each time a driver crossed the line.</p>`;
+    if (tab === "tyres") {
+      const N = R.N;
+      const seg2 = (st, k) => { const w = ((st.b - st.a + 1) / N) * 100, t = st.tyre, lab = `${t ? TYRE[t][2] : `Stint ${k + 1}`}, laps ${st.a} to ${st.b}${st.pit?.[1] ? `, then ${st.pit[1].toFixed(1)}s in the pits` : ""}`;
+        return `<span class="st-seg${t ? "" : " plain"}${t === "HARD" ? " hard" : ""}" style="left:${((st.a - 1) / N) * 100}%;width:${w}%;${t ? `--t:${TYRE[t][0]};color:${textOn(TYRE[t][0])}` : ""}" title="${esc(lab)}">${w > 7 ? `${t ? TYRE[t][1] : ""}${w > 11 ? ` ${st.b - st.a + 1}` : ""}` : ""}</span>`; };
+      const flagRow = R.bands.length ? `<div class="st-row st-flags"><span class="lap-who muted">Flags</span><div class="st-bar">${R.bands.map(b => `<span class="st-seg flag" style="left:${((b.a - 1) / N) * 100}%;width:${((b.b - b.a + 1) / N) * 100}%;--t:${FLAG_BAND[b.kind][0]}" title="${FLAG_BAND[b.kind][1]}, laps ${b.a} to ${b.b}"></span>`).join("")}</div><span></span></div>` : "";
+      const rows = R.order.map(d => { const x = R.D[d]; return `<div class="st-row${sel.includes(d) ? " on" : ""}">${tick(d)}<div class="st-bar">${x.stints.map(seg2).join("")}</div><span class="tiny muted">${plural(x.pit.length, "Stop", "Stops")}</span></div>`; }).join("");
+      const stintRows = sel.flatMap(d => R.D[d].stints.map((st, k) => {
+        const pts = []; for (let n = st.a; n <= st.b; n++) if (R.D[d].clean[n - 1]) pts.push([n, R.D[d].t[n - 1]]);
+        const avg = pts.length ? pts.reduce((a, p) => a + p[1], 0) / pts.length : null;
+        const drop = pts.length >= 5 ? slope(pts) + FUEL_PER_LAP : null;
+        return `<tr>${k === 0 ? `<td rowspan="${R.D[d].stints.length}">${tick(d)}</td>` : ""}<td>${st.tyre ? `${tyreChip(st.tyre, st.age)} ${TYRE[st.tyre][2]}` : `Stint ${k + 1}`}</td>
+          <td class="r">${st.a}–${st.b}<span class="tiny muted hide-sm"> (${st.b - st.a + 1})</span></td><td class="r num">${avg ? fmtLap(avg) : "–"}</td>
+          <td class="r num ${drop > 0.12 ? "down" : ""}">${drop == null ? "–" : `${drop >= 0 ? "+" : "−"}${Math.abs(drop).toFixed(3)}s`}</td><td class="r hide-sm">${st.pit?.[1] ? `${st.pit[1].toFixed(1)}s` : ""}</td></tr>`; })).join("");
+      body = `<div class="strat">${flagRow}${rows}<div class="st-row st-axis"><span></span><div class="st-bar">${lapTicks(N).map(t => `<span style="left:${((t - 0.5) / N) * 100}%">${t}</span>`).join("")}</div><span></span></div></div>
+        ${R.tyres ? `<div class="legend lap-legend">${["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"].filter(t => R.order.some(d => R.D[d].stints.some(st => st.tyre === t))).map(t => `<span>${tyreChip(t)} ${TYRE[t][2]}</span>`).join("")}</div>`
+          : `<p class="tiny muted">Tyre compounds for ${race.date.slice(0, 4)} arrive with the local FastF1 run; until then stints come from pit stops.</p>`}
+        <h3 style="margin:16px 0 6px">Stint Pace</h3>
+        <div class="table-wrap"><table class="stints"><thead><tr><th>Driver</th><th>Tyre</th><th class="r">Laps</th><th class="r">Avg Lap</th><th class="r">Drop / Lap</th><th class="r hide-sm">Pit Stop</th></tr></thead><tbody>${stintRows}</tbody></table></div>
+        <p class="tiny muted" style="margin-top:8px">Avg Lap counts clean laps only. Drop / Lap is how much slower each clean lap got through a stint, plus about ${FUEL_PER_LAP.toFixed(2)}s a lap for fuel burning off, so it's an estimate of tyre wear. Pit stop is time in the pit lane.</p>`;
+    }
+    if (tab === "cons") {
+      const st = R.order.map(d => { const v = R.D[d].t.filter((t, i) => R.D[d].clean[i]); if (v.length < 8) return null; return { d, n: v.length, med: median(v), q1: quant(v, .25), q3: quant(v, .75), lo: Math.min(...v), hi: Math.max(...v), sd: stdev(v) }; }).filter(Boolean).sort((a, b) => a.sd - b.sd);
+      const lo = Math.min(...st.map(x => x.lo)), hi = Math.max(...st.map(x => x.hi)), X = v => ((v - lo) / (hi - lo || 1)) * 100;
+      body = st.length ? `<div class="table-wrap"><table class="cons"><thead><tr><th>#</th><th>Driver</th><th class="box-col">Clean Laps</th><th class="r hide-sm">Median</th><th class="r">Spread</th></tr></thead><tbody>
+        ${st.map((x, k) => `<tr class="${sel.includes(x.d) ? "on" : ""}"><td class="pos">${k + 1}</td><td>${tick(x.d)}</td>
+          <td class="box-col"><span class="box"><i class="wh" style="left:${X(x.lo)}%;width:${X(x.hi) - X(x.lo)}%"></i><i class="bx" style="left:${X(x.q1)}%;width:${Math.max(0.6, X(x.q3) - X(x.q1))}%;--c:${teamColor(R.D[x.d].c)}"></i><i class="md" style="left:${X(x.med)}%"></i></span></td>
+          <td class="r num hide-sm">${fmtLap(x.med)}</td><td class="r num">±${x.sd.toFixed(3)}s</td></tr>`).join("")}</tbody></table></div>
+        <p class="tiny muted" style="margin-top:8px">Each bar runs from a driver's quickest to slowest clean lap (${fmtLap(lo)} to ${fmtLap(hi)}); the box holds the middle half and the line marks the median. Ranked by standard deviation, smallest first, for drivers with at least 8 clean laps.</p>`
+        : `<p class="muted small">Not enough clean laps to compare.</p>`;
+    }
+    const head = `<div class="card-head"><h2>Lap by Lap</h2>${seg("lapTab", LAP_TABS, tab, "Lap by Lap View")}</div>
+      ${tab === "gap" ? `<div class="lap-ref"><label class="tiny muted" for="lapRef">Gap To</label><select class="pick" id="lapRef"><option value="">Leader</option>${R.order.map(d => `<option value="${esc(code(d).toLowerCase())}"${d === ref ? " selected" : ""}>${esc(s.drivers[d]?.name || d)}</option>`).join("")}</select></div>` : ""}
+      ${tab !== "cons" ? chips : ""}`;
+    return { html: `<section class="card lap-card" id="lapCard">${head}${body}<p class="tiny muted lap-src">Lap times and pit stops from Jolpica${L.src.includes("OpenF1") ? "; tyres and race control from OpenF1" : ""}.</p></section>`, tab, sel, ref, code };
+  }
+  function mountLapCard(root, R, race, s, card, animate) {
+    onSeg(root, "#lapTab", v => setQuery({ lt: v === "pos" ? null : v }));
+    $$(".lap-chips button", root).forEach(b => (b.onclick = () => {
+      const cur = card.sel.map(d => card.code(d).toLowerCase()), c = b.dataset.d;
+      const next = cur.includes(c) ? cur.filter(x => x !== c) : [...cur, c];
+      if (next.length) setQuery({ ld: next.join(",") });
+    }));
+    onChange(root, "#lapRef", v => setQuery({ lg: v || null }));
+    const el = $("#lapChart", root); if (!el) return null;
+    const { N, D } = R, sel = card.sel, ln = d => card.code(d);
+    const colorOf = (d, list) => { const c = D[d].c, first = list.find(x => D[x].c === c); return { color: teamColor(c), dash: first !== d }; };
+    const xsLaps = Array.from({ length: N }, (_, i) => i + 1);
+    const tyreAt = (d, n) => { const st = D[d].stints.find(x => x.a <= n && n <= x.b); return st?.tyre ? ` ${TYRE[st.tyre][1]}${st.age + n - st.a ? `+${st.age + n - st.a}` : ""}` : ""; };
+    const row = (d, val) => `<span class="r"><span><span class="swatch" style="background:${teamColor(D[d].c)}"></span>${esc(ln(d))}</span><b>${val}</b></span>`;
+    if (card.tab === "pos") {
+      const field = R.order.length;
+      const series = R.order.map(d => { const on = sel.includes(d), { color, dash } = colorOf(d, R.order); return { name: ln(d), color, dash, width: on ? 3 : 1.4, opacity: on ? 1 : 0.28, quiet: !on, values: [D[d].grid || field, ...D[d].p] }; });
+      const marks = sel.flatMap(d => D[d].pit.map(([n]) => ({ x: n, y: D[d].p[n - 1], color: teamColor(D[d].c) })));
+      return mountChart(el, { xs: [0, ...xsLaps], series, height: 360, padL: 40, invert: true, yMin: 0.5, yMax: field + 0.5, yTicks: [1, 5, 10, 15, 20].filter(v => v <= field), yFmt: v => `P${Math.round(v)}`,
+        xTicks: [0, ...lapTicks(N).slice(1)], xFmt: v => (v === 0 ? "Grid" : `L${v}`), bands: bandsFor(R), marks, label: "Positions Lap by Lap", animate,
+        tipTitle: i => (i === 0 ? "Grid" : `Lap ${i}${R.slow.has(i) ? `, ${R.est ? "Slow Lap" : "Safety Car"}` : ""}`),
+        tipHtml: i => sel.map(d => [d, i === 0 ? D[d].grid || field : D[d].p[i - 1]]).filter(x => x[1]).sort((a, b) => a[1] - b[1]).map(([d, p]) => row(d, `P${p}${i && D[d].pit.some(x => x[0] === i) ? ", Pitted" : ""}`)).join("") });
+    }
+    if (card.tab === "pace") {
+      const series = sel.map(d => ({ name: ln(d), ...colorOf(d, sel), width: 2.2, values: D[d].t.map((t, i) => (D[d].clean[i] ? t : null)).concat(Array(Math.max(0, N - D[d].t.length)).fill(null)) }));
+      const vals = series.flatMap(x => x.values.filter(v => v != null));
+      if (!vals.length) { el.innerHTML = '<p class="muted small">No clean laps for these drivers.</p>'; return null; }
+      return mountChart(el, { xs: xsLaps, series, height: 300, padL: 62, xTicks: lapTicks(N), xFmt: v => `L${v}`, yFmt: v => fmtLap(v).replace(/(\.\d)\d\d$/, "$1"), ...niceScale(Math.min(...vals), Math.max(...vals)), bands: bandsFor(R), label: "Lap Times", animate,
+        tipTitle: i => `Lap ${i + 1}`, tipHtml: i => sel.map(d => { const t = D[d].t[i]; return t == null ? "" : row(d, `${fmtLap(t)}${D[d].why[i] ? ` (${D[d].why[i]})` : ""}${tyreAt(d, i + 1)}`); }).join("") });
+    }
+    if (card.tab === "gap") {
+      const refCum = card.ref ? D[card.ref].cum : R.lead;
+      const gapOf = d => xsLaps.map((_, i) => (D[d].cum[i] != null && refCum[i] != null ? D[d].cum[i] - refCum[i] : null));
+      const series = sel.map(d => ({ name: ln(d), ...colorOf(d, sel), width: 2.4, values: gapOf(d) }));
+      const marks = sel.flatMap(d => D[d].pit.map(([n]) => ({ x: n, y: series.find(x => x.name === ln(d)).values[n - 1], color: teamColor(D[d].c) })));
+      const f = v => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}s`;
+      const gv = series.flatMap(x => x.values.filter(v => v != null));
+      return mountChart(el, { xs: xsLaps, series, height: 300, padL: 56, invert: true, zero: true, ...niceScale(Math.min(0, ...gv), Math.max(1, ...gv)), xTicks: lapTicks(N), xFmt: v => `L${v}`, yFmt: f, bands: bandsFor(R), marks, label: "Gaps Lap by Lap", animate,
+        tipTitle: i => `Lap ${i + 1}`, tipHtml: i => series.map((x, k) => [sel[k], x.values[i]]).filter(x => x[1] != null).sort((a, b) => a[1] - b[1]).map(([d, v]) => row(d, f(v))).join("") });
+    }
+    return null;
+  }
+
   async function racesView(_, q) {
     const y = +(q.get("y") || await latestYear());
     const s = await season(y);
     const done = s.races.filter(r => r.results.length);
     const rnd = +(q.get("r") || findRace(s.races, q.get("rs") || "")?.round || (done.length ? done[done.length - 1].round : 1));
     const race = s.races.find(r => r.round === rnd) || s.races[0];
-    const [tidx, C, T, prev] = await Promise.all([telIndex(), circuitsData(), trendsData(), season(y - 1).catch(() => null)]);
+    const [tidx, C, T, prev] = await Promise.all([telIndex(), circuitsData(), trendsData(), meta().then(m => (m.seasons.includes(y - 1) ? season(y - 1) : null)).catch(() => null)]);
     const tele = tidx.find(i => i.year === y && i.round === race.round);
     const fl = race.results.find(r => r.flr === 1);
+    const L = race.results.length ? await lapsFor(y, race.round) : null;
+    const R = L ? raceLaps(L, race) : null, lc = R ? lapCard(L, R, race, s, q) : null;
     // where the season stands: the next race is the first one without results
     const next = s.races.find(r => !r.results.length);
     const today = new Date(); today.setHours(12, 0, 0, 0);
@@ -1251,6 +1421,7 @@
               <div class="legend" style="margin-top:8px"><span><svg width="28" height="8" aria-hidden="true"><line x1="1" y1="4" x2="27" y2="4" stroke="#0F1218" stroke-width="2.5"/></svg> Finished</span><span><svg width="28" height="8" aria-hidden="true"><line x1="1" y1="4" x2="27" y2="4" stroke="#0F1218" stroke-width="2.5" stroke-dasharray="4 4"/></svg> Retired</span><span class="tiny">${matchMedia("(hover: none)").matches ? "Tap" : "Hover over"} a line to follow one driver</span></div></section>
             <section class="card"><h2 style="margin-bottom:6px">Race Notes</h2><div class="facts-grid one">${raceNotes.map(([k, v]) => `<div class="fact"><span>${k}</span><b>${v}</b></div>`).join("")}</div></section>
           </div>
+          ${lc ? lc.html : ""}
           <section class="card"><h2 style="margin-bottom:8px">Race Results</h2><div class="table-wrap"><table>
             <thead><tr><th>Pos</th><th>Driver</th><th class="hide-sm">Team</th><th class="r hide-sm">Grid</th><th class="r">+/−</th><th class="hide-sm">Status</th><th class="r hide-sm">Fastest Lap</th><th class="r">Points</th></tr></thead>
             <tbody>${race.results.map(r => { const g = r.grid ? r.grid - r.pos : null; return `<tr data-href="#/driver/${r.d}?y=${y}"><td class="pos">${r.pos}</td><td>${driverLink(r.d, s)}</td><td class="hide-sm">${teamLink(r.c, s, { size: 22 })}</td>
@@ -1262,8 +1433,9 @@
                <div class="mini-facts">${yrs.map(v => `<div><span>${v}</span><b>${esc(T[race.circuit].years[v].winner)}</b></div>`).join("")}</div></section>` : ""; })()}`}
         </div>
       </div>`;
-    return { html, canon: q.get("r") || q.get("rs") ? { r: race.round } : null, mount(root) {
+    return { html, canon: q.get("r") || q.get("rs") ? { r: race.round } : null, mount(root, ctx) {
       onChange(root, "#season", v => setQuery({ y: v, r: null }));
+      if (lc) { const ch = mountLapCard(root, R, race, s, lc, ctx.first); if (ch) cleanups.push(ch.destroy); }
       $$("[data-r]", root).forEach(b => (b.onclick = () => setQuery({ r: b.dataset.r })));
       const sl = $("#slope", root); if (sl) cleanups.push(mountSlope(sl, race, s).destroy);
       const cur = $('[data-r][aria-current="true"]', root), list = $(".race-list", root);

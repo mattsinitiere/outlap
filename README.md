@@ -21,11 +21,13 @@ Keep it private, for personal use. Don't publish it to an app store.
   strip of layouts and two drivers from chips ranked by lap time. Track map coloured by who is
   faster in each of 24 mini-sectors, or by speed, throttle, brake, gear or
   estimated g. Interactive charts (speed, throttle and brake, gear, g-force,
-  gap) linked to the map, sector times, corner minimum speeds and a lap summary.
+  gap) linked to the map, sector times, corner minimum speeds, a lap summary and
+  the gap between the two drivers over the whole race.
 - **Standings:** championship leader, an interactive points race, driver and
   constructor tables.
 - **Races:** every round, with the next race marked and a countdown. Completed
-  rounds show podium photos, pole, fastest lap and full results; upcoming rounds
+  rounds show podium photos, pole, fastest lap, full results and Lap by Lap charts
+  (positions, pace, gaps, tyre strategy and wear, consistency); upcoming rounds
   show the weekend schedule and recent winners there.
 - **Drivers:** the grid for any season, and a profile per driver with career
   stats since 2018, points by season, their car, season results, teammate
@@ -64,6 +66,8 @@ down there too. Settings are remembered on each device.
 | What | Source | Notes |
 |---|---|---|
 | Results, standings, schedule | Jolpica | Free |
+| Lap times, positions and pit stops, 2018+ | Jolpica | Free; about 500 requests an hour, so the first backfill takes several refresh runs |
+| Tyre stints and Safety Car periods, 2023+ | OpenF1 | Free for past sessions |
 | Lap telemetry, sectors, speed traps, 2023+ | OpenF1 | Free for past sessions. **OpenF1 blocks all free access while any F1 session is live**; the automatic refresh retries after the session |
 | Telemetry 2018–2022 | FastF1 | F1's archive blocks cloud IPs; run the backfill on your own computer |
 | Driver headshots | OpenF1 (official, 2023+) with Wikipedia/Wikimedia Commons photos as fallback | Official headshots linked for personal use |
@@ -97,6 +101,7 @@ ingest/
   news.py              News, videos, social posts and contract stories → web/data/news*.json, contracts.json
   news_sources.json    Which sites, channels and accounts to read (edit freely)
   driver_contracts.json  Your own sourced contract and salary figures (starts empty)
+  laps.py              Lap-by-lap data → web/data/laps (runs on every auto refresh)
   check_new.py         Quick check for new results/telemetry (used by the auto refresh)
 web/                   The app (static files, no build step)
 serve.py               Local server that understands the app's clean addresses

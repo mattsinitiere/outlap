@@ -6,6 +6,9 @@ name: Refresh race data
 #    something is new does it rebuild the current season. Most runs stop after the check.
 #  - Every Monday, and on demand, a full refresh: current season plus photos, logos,
 #    new circuits and Wikipedia info.
+# Every run also fetches lap-by-lap data (ingest/laps.py) for any race that lacks it. The first
+# backfill of every race since 2018 needs several runs because Jolpica allows about 500 requests
+# an hour; after that it only picks up new races.
 # A commit is made only when real data changed (a new timestamp alone doesn't count),
 # and Vercel redeploys automatically from the push. If the season build runs out of
 # time, whatever finished is still committed and the next run carries on from there.
@@ -30,7 +33,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -49,7 +52,7 @@ jobs:
         run: pip install requests==2.32.3 "numpy>=1.26,<3"
       - name: Build seasons
         if: steps.plan.outputs.run != 'none'
-        timeout-minutes: 270
+        timeout-minutes: 240
         continue-on-error: true
         env:
           SINCE: ${{ inputs.since }}
@@ -60,6 +63,11 @@ jobs:
             *) echo "since must be a year like 2023"; exit 1 ;;
           esac
           python -u ingest/build_data.py --since "$SINCE"
+      - name: Lap-by-lap data (resumable, standard library only)
+        if: always()
+        timeout-minutes: 95
+        continue-on-error: true
+        run: python -u ingest/laps.py --minutes ${{ steps.plan.outputs.run == 'full' && '25' || '85' }}
       - name: Photos and logos
         if: always() && steps.plan.outputs.run == 'full'
         timeout-minutes: 40

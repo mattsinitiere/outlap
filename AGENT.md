@@ -56,6 +56,7 @@ ingest/
   wiki_info.py        Driver bios, team facts, car spec sheets and galleries → info.json
   cars.json           Chassis name per team and season (edit to fix a car photo or spec match)
   build_preview.py    Bundles web/ + data into one HTML file with Commons photos and brand SVGs embedded
+  laps.py             Stdlib-only lap-by-lap collector (Jolpica laps and pit stops, OpenF1 stints, sectors, race control) → laps/
   check_new.py        Cheap stdlib-only check for new results, qualifying or recent missing telemetry
   news.py             Stdlib-only news collector → news.json, news_archive.json, contracts.json
   news_sources.json   News sites, Google News switch, YouTube handles, Bluesky accounts, subreddits (edit freely)
@@ -72,6 +73,7 @@ ingest/
 | `meta.json` | Seasons available, generation time |
 | `season_YYYY.json` | Races (results, pole, fastest laps, `time` and `sessions` in UTC), drivers, constructors, standings, `openf1` headshots/colours |
 | `telemetry/index.json`, `telemetry/YYYY_RR.json` | Fastest race lap per driver: distance-aligned arrays `d x y spd thr brk gear rpm gx gy`, lap, sectors, headshot |
+| `laps/index.json`, `laps/YYYY_RR.json` | Per race: `laps` count, `drivers[id]` with `t` lap times (s), `p` positions, `pit` [[lap, pit-lane s]], and from 2023 `st` stints [[compound, firstLap, lastLap, ageAtStart]], `sec` [s1[], s2[], s3[]], `trap` speeds; `flags` [[SC/VSC/RED, firstLap, lastLap]]; `of1` ok/none once OpenF1 was tried. Index lists races with `tyres`/`flags` |
 | `trends.json` | Per circuit per year: pole, fastest lap, winner, speed trap |
 | `media.json` | `drivers` (Commons photo, official headshot, gallery), `logos[cid][year]`, `cars[year][cid]` |
 | `circuits.json` | Outline `x/y` (decimetres, F1 frame), rotation, corners, elevation per point, facts, about, photos |
@@ -98,18 +100,22 @@ python ingest/wiki_info.py                  # --force [--keep-drivers]
 python serve.py                             # run locally on :8000 (handles clean URLs)
 python ingest/news.py                       # news, videos, social posts, contract stories
 python ingest/build_preview.py preview.html # single-file preview
+python ingest/laps.py                       # lap-by-lap data for races that lack it (--minutes, --race 2024:8)
 python ingest/check_new.py                  # anything new on Jolpica/OpenF1? (what the 3-hourly job runs)
 ```
 
 ### Automatic refresh (`refresh-data.yml`)
 
-- **Every run:** `news.py` (about a minute) refreshes news and contract stories.
+- **Every run:** `news.py` (about a minute) refreshes news and contract stories, and
+  `laps.py` adds lap-by-lap data for any race without it (85-minute budget, 25 on full runs).
+  Requests to Jolpica are spaced 8 s apart to stay under 500 an hour, so the first backfill
+  of about 190 races takes several runs; afterwards a run only fetches new races.
 - **Every 3 hours:** `check_new.py` compares the current season with Jolpica (schedule
   size, result rows, latest qualifying round) and flags races from the last 14 days that
   still lack OpenF1 telemetry. Only then does it run `build_data.py --since <this year>`.
 - **Monday 10:00 UTC and manual runs:** full refresh (season + media, circuits, wiki info).
   A manual run's `since` input rebuilds from an earlier season, e.g. `2023` to backfill
-  OpenF1 telemetry. The season build has a 270-minute limit; whatever finished is still
+  OpenF1 telemetry. The season build has a 240-minute limit; whatever finished is still
   committed (data files are written atomically) and a re-run carries on.
 - A commit happens only if something besides `meta.json`'s timestamp changed. News changes
   most runs, so expect a "News refresh" commit (and Vercel deploy) about every 3 hours.
@@ -157,7 +163,14 @@ and watching the console for errors. Playwright screenshots work well for this.
   force a full re-render or scroll reset on same-route changes.
 - **mount():** wire events here, mount charts, and return a cleanup function (or push
   to `cleanups`). `ctx.first` is true on a page change; pass it as `animate` to charts.
-- **Charts:** `mountChart` (lines, hover tooltip, `setCursor` for syncing),
+- **Lap by Lap:** `lapsFor(y, round)` loads a race's lap file (only if `laps/index.json` lists it);
+  `raceLaps(L, race)` derives cumulative times, neutralised laps (race control, or an estimate
+  when the field ran 15% slower), clean laps (`why[i]` says why a lap isn't clean) and stints.
+  `lapCard()` renders the race page card; `mountLapCard()` draws its charts. Race page query:
+  `?laps=positions|pace|gaps|strategy|consistency&drivers=ver,nor&ref=ver` (internal `lt`, `ld`, `lg`).
+  Tyre wear is the clean-lap trend in a stint plus `FUEL_PER_LAP` (0.06 s, an estimate).
+- **Charts:** `mountChart` (lines, hover tooltip, `setCursor` for syncing; options include
+  `yTicks`, `tipHtml(i)` for a custom tooltip, `marks` for dots, per-series `opacity`/`quiet`),
   `mountBars`, `mountSlope` (grid to finish). Draw at real container width; no chart library.
 - **Images:** always go through `imgTag(urls, alt)` (fallback chain via `data-alt`,
   fade-in on load) or `portrait(urls, alt, cls)` for halftone driver/circuit photos.
@@ -240,8 +253,8 @@ element in `:hover`, so a hover style that beats a selected style makes it vanis
 
 | Source | Used for | Notes |
 |---|---|---|
-| Jolpica (Ergast successor) | Results, standings, schedule | ~4 req/s, 500/hour |
-| OpenF1 | Telemetry, sectors, speed traps, headshots (2023+) | **Free access is blocked for everything while any F1 session is live.** Scripts stop cleanly and resume |
+| Jolpica (Ergast successor) | Results, standings, schedule, lap times and positions, pit stops | ~4 req/s, 500/hour; laps endpoint pages 100 timings at a time (about 13 requests a race) |
+| OpenF1 | Telemetry, sectors, speed traps, headshots, tyre stints, race control (2023+) | **Free access is blocked for everything while any F1 session is live.** Scripts stop cleanly and resume |
 | FastF1 / F1 live-timing archive | 2018–2022 telemetry | Archive blocks cloud IPs (GitHub Actions, sandboxes); run locally |
 | MultiViewer API | Circuit outlines, official turn numbers, pit loss | Madrid and Kuala Lumpur (2026) not covered |
 | bacinger/f1-circuits (MIT) | Real-world outlines for elevation alignment | |
@@ -255,7 +268,8 @@ element in `:hover`, so a hover style that beats a selected style makes it vanis
 | Bluesky public API | Posts from listed accounts | No key; list starts empty |
 | X / Instagram | Not used | X needs a paid API plan, Instagram has no public API. Ask before adding a paid service |
 
-Known gaps: g-forces read low (4 Hz data); brake is on/off only; corner names exist
+Known gaps: tyre compounds and official Safety Car periods start in 2023 (earlier SC laps are estimated);
+pit stop times are pit-lane time, not stationary time; g-forces read low (4 Hz data); brake is on/off only; corner names exist
 only for Monza (`CORNERS` in app.js); some Wikipedia infobox fields are missing for
 some cars and teams. News tags are name matches (a common surname like Russell can
 over-match) plus the driver or team a Google search was run for. Contract terms
