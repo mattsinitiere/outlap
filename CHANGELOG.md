@@ -8,6 +8,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- Team photos on team profiles: garage, pit-stop and team shots from Wikimedia
+  Commons (credited), with the first one as the page's header image and the rest
+  in a Team Photos gallery. Teams without photos keep their car in the header.
 - Contract and Pay card on driver profiles. It lists contract, extension and salary
   stories about that driver from the news feed (kept for a year), and shows a
   contract end year and estimated salary when you add them, with their source,
@@ -51,6 +54,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- Team pages: the car photos section is now called Cars and sits right under the
+  team profile instead of near the bottom.
+- Turn labels on the elevation profile (and corner labels on the telemetry chart)
+  sit in one line as alternating dark and light tags, each with a tick to its exact
+  spot, instead of being staggered on two levels. When space runs short they slide
+  sideways, switch to just the number, and on phones the chart scrolls sideways.
+- Turn numbers on circuit maps no longer overlap each other or the track: crowded
+  corners fan their numbers out, each joined to its corner by a line.
 - Launch screen now shows every time the app opens: the OutLap wordmark rises in
   and the three sector lines fill one after another, for at least a second and
   never more than about three (if the page is still loading, its placeholders take over).

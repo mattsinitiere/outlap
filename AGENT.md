@@ -75,7 +75,7 @@ ingest/
 | `trends.json` | Per circuit per year: pole, fastest lap, winner, speed trap |
 | `media.json` | `drivers` (Commons photo, official headshot, gallery), `logos[cid][year]`, `cars[year][cid]` |
 | `circuits.json` | Outline `x/y` (decimetres, F1 frame), rotation, corners, elevation per point, facts, about, photos |
-| `info.json` | `drivers[id]` bio, `teams[cid]` about + facts, `cars["YYYY/cid"]` about + specs + gallery |
+| `info.json` | `drivers[id]` bio, `teams[cid]` about + facts + `photos` (Commons team shots), `cars["YYYY/cid"]` about + specs + gallery |
 | `news.json` | Newest 150 stories for Home: `t` title, `u` link, `s` source, `k` article/video/social, `d` UTC time, `x` summary, `img`, `dr`/`tm` driver and team tags |
 | `news_archive.json` | Same items for 30 days (max 2,000), plus `sources` and the YouTube `channels` id cache |
 | `contracts.json` | `drivers` (copied from `ingest/driver_contracts.json`) and `news[driverId]` contract/salary stories, kept a year |
@@ -138,6 +138,9 @@ and watching the console for errors. Playwright screenshots work well for this.
   `/races/:year/:race` `/drivers/:year` `/drivers/:id/:year` `/teams/:year` `/teams/:id/:year`
   `/cars/:year` `/cars/:year/:team` `/circuits` `/circuits/:id` `/news?type=&driver=&team=&source=`.
   Ids are slugs with `-` for `_`; race slugs come from the race name.
+- **Turn labels:** `mountTurnRow(row, items)` draws one row of turn pills above a lap chart
+  (wrap the row and chart with `turnRowHtml(rowId, chartId)`; its L/R padding must match the
+  chart's). `placeTurnBubbles(G, r, sw)` spreads circuit-map turn numbers so none overlap.
 - **Home and Races:** `weekendCard(race, …)` (countdown, sessions in local time, layout) is
   shared by Home and upcoming rounds on Races; `mountCountdown(root)` drives it.
 - **News:** `newsItem(n, season)` renders one story; `mountInNews` fills the driver/team
