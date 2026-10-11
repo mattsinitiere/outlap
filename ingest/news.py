@@ -95,9 +95,13 @@ def item(title, url, source, kind, date, summary="", img=None, teams=(), drivers
 
 # ---------- parsers ----------
 
+RAW_COUNT = [0]  # entries in the last feed parsed, so the log can say "0 of 40 had a date and link"
+
+
 def parse_feed(raw, source, kind="article", teams=()):
     """RSS 2.0 or Atom -> items."""
     root = ET.fromstring(raw)
+    RAW_COUNT[0] = len(list(root.iter("item"))) + len(list(root.iter("{http://www.w3.org/2005/Atom}entry")))
     out = []
     for it in root.iter("item"):  # RSS
         g = lambda tag: (it.findtext(tag) or "")
@@ -146,16 +150,35 @@ def google_news(query, source_tag, drivers=(), teams=()):
     return items
 
 
-def youtube_channel(handle, cache):
-    if handle in cache:
-        return cache[handle]
-    page = fetch(f"https://www.youtube.com/{urllib.parse.quote(handle, safe='@')}").decode("utf-8", "replace")
+BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+
+
+def youtube_feed(y, cache):
+    """Video feed for a channel: a channel_id from the config or cache, else the legacy username feed,
+    else the channel id read from the @handle page. Whatever works is cached for next time."""
+    handle = y["handle"]
+    base = "https://www.youtube.com/feeds/videos.xml?"
+    cid = y.get("channel_id") or cache.get(handle)
+    if cid:
+        return fetch(base + "channel_id=" + cid)
+    try:
+        raw = fetch(base + "user=" + urllib.parse.quote(handle.lstrip("@")))
+        m = re.search(rb"<yt:channelId>(UC[\w-]{22})</yt:channelId>", raw)
+        if m:
+            cache[handle] = m.group(1).decode()
+        return raw
+    except Exception:  # noqa: BLE001 - not a legacy username; try the handle page
+        pass
+    req = urllib.request.Request(f"https://www.youtube.com/{urllib.parse.quote(handle, safe='@')}",
+                                 headers={"User-Agent": BROWSER_UA, "Accept-Language": "en-US,en", "Cookie": "CONSENT=YES+1"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        page = r.read(3_000_000).decode("utf-8", "replace")
     m = re.search(r'<link rel="canonical" href="https://www\.youtube\.com/channel/(UC[\w-]{22})"', page) or \
-        re.search(r'"(?:externalId|channelId)":"(UC[\w-]{22})"', page)
+        re.search(r'"(?:externalId|channelId|browseId)":"(UC[\w-]{22})"', page)
     if not m:
-        raise ValueError("channel id not found")
+        raise ValueError("channel id not found on the handle page")
     cache[handle] = m.group(1)
-    return cache[handle]
+    return fetch(base + "channel_id=" + cache[handle])
 
 
 def bluesky(handle, name, teams=()):
@@ -245,7 +268,9 @@ def main():
     def run(label, fn):
         try:
             got = fn()
-            fresh.extend(got); report.append((label, len(got), None))
+            fresh.extend(got)
+            report.append((label, len(got) if got else f"0 (of {RAW_COUNT[0]} entries, none had a date and link)", None))
+            RAW_COUNT[0] = 0
         except Exception as e:  # noqa: BLE001 - one broken source must not stop the rest
             report.append((label, 0, str(e)[:120]))
         time.sleep(0.6)
@@ -257,9 +282,8 @@ def main():
         for q, drivers, teams in queries:
             run(f"Google News: {q}", lambda q=q, drivers=drivers, teams=teams: google_news(q, q, drivers, teams))
     for y in cfg.get("youtube", []):
-        run(f"YouTube {y['handle']}", lambda y=y: parse_feed(
-            fetch(f"https://www.youtube.com/feeds/videos.xml?channel_id={youtube_channel(y['handle'], channels)}"),
-            y["name"], "video", [y["team"]] if y.get("team") else []))
+        run(f"YouTube {y['handle']}", lambda y=y: parse_feed(youtube_feed(y, channels), y["name"], "video",
+                                                             [y["team"]] if y.get("team") else []))
     for b in cfg.get("bluesky", []):
         run(f"Bluesky {b['handle']}", lambda b=b: bluesky(b["handle"], b.get("name", b["handle"]), [b["team"]] if b.get("team") else []))
     for r in cfg.get("reddit", []):

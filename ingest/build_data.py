@@ -174,7 +174,7 @@ def lap_telemetry(session_key, lap):
 def openf1_race(season, session, race, want_telemetry, n_drivers):
     key = session["session_key"]
     laps = [l for l in of1("laps", session_key=key)
-            if l.get("lap_duration") and not l.get("is_pit_out_lap")]
+            if l.get("lap_duration") and l.get("date_start") and not l.get("is_pit_out_lap")]
     speeds = [l["st_speed"] for l in laps if l.get("st_speed")]
     trend = dict(topSpeed=max(speeds) if speeds else None)
     if not want_telemetry:
@@ -192,7 +192,12 @@ def openf1_race(season, session, race, want_telemetry, n_drivers):
     traces = []
     for lap in picks:
         di = info.get(lap["driver_number"], {})
-        tr = lap_telemetry(key, lap)
+        try:
+            tr = lap_telemetry(key, lap)
+        except LiveSessionLock:
+            raise
+        except Exception as e:  # noqa: BLE001 - one bad lap shouldn't stop the season
+            print(f"    {di.get('name_acronym')} skipped: {e}"); tr = None
         if tr:
             traces.append(dict(code=di.get("name_acronym"), team=di.get("team_name"),
                                color="#" + (di.get("team_colour") or "8A97A8"),

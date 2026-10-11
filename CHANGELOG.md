@@ -84,6 +84,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   breakdown, then a full-width car card.
 
 ### Fixed
+- Data refreshes no longer stop on one bad record. A single lap with missing
+  timing data had ended the telemetry backfill partway through 2025, and one
+  failed Wikipedia lookup stopped the car photo update; both are now skipped and
+  logged, and Wikipedia rate limits are waited out.
+- YouTube videos: channels are now found through their video feed (or a channel id
+  in `ingest/news_sources.json`) instead of a page lookup that YouTube was refusing.
+  Three news feeds that no longer exist (PlanetF1, GPblog, ESPN) were removed, and
+  the log now says why a feed returned no stories.
 - On phones, tapping something no longer leaves it looking blank. Touch screens
   keep the last tapped item in a "hover" state, and some hover styles overrode the
   selected look, most visibly a selected track in the telemetry picker turning white
