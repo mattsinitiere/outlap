@@ -32,7 +32,10 @@ class LiveSessionLock(Exception):
 
 def get(url, params=None, pause=0.35, tries=6):
     for i in range(tries):
-        r = S.get(url, params=params, timeout=60)
+        try:
+            r = S.get(url, params=params, timeout=60)
+        except requests.RequestException as e:  # timeouts and dropped connections: wait and retry
+            print(f"    {type(e).__name__} on {url}, retrying"); time.sleep(10 * (i + 1)); continue
         if r.status_code == 401 and "openf1" in url:
             raise LiveSessionLock(r.json().get("detail", "OpenF1 requires a key right now"))
         if r.status_code == 429:
