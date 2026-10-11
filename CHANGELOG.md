@@ -126,6 +126,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   breakdown, then a full-width car card.
 
 ### Fixed
+- Clicking a race in the Races list works again. On the plain Races address (no season in
+  it) a click changed nothing; the address now always names the season and race.
 - A single slow answer from Jolpica no longer stops the whole data refresh; it waits and
   retries. This is what left 2026 without session times and telemetry after the last run.
 - YouTube videos: when a channel's feed is refused, the refresh tries the same videos
