@@ -1,0 +1,38 @@
+name: Refresh race data
+
+# Runs Monday morning after a race weekend and on demand.
+# Updates results, standings and OpenF1 telemetry for the current season,
+# commits web/data, and Vercel redeploys automatically from the push.
+on:
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests==2.32.3 "numpy>=1.26,<3"
+      - name: Build current season
+        run: python ingest/build_data.py --since $(date +%Y)
+      - name: Photos and logos
+        run: python ingest/media.py
+      - name: New circuits (existing ones are kept)
+        run: python ingest/circuits.py
+      - name: Bios, team facts and car specs for anything new
+        run: python ingest/wiki_info.py
+      - name: Commit data
+        run: |
+          git config user.name "outlap-bot"
+          git config user.email "outlap-bot@users.noreply.github.com"
+          git add web/data
+          git diff --cached --quiet || git commit -m "Data refresh $(date -u +%F)"
+          git push

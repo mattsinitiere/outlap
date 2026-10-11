@@ -1,0 +1,6 @@
+ingest/.fastf1-cache/
+__pycache__/
+.DS_Store
+.vercel
+dist/
+ingest/.preview-cache/
