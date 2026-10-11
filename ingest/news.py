@@ -13,6 +13,9 @@ the app links out to read the full story. Items are tagged with the current
 season's drivers and teams they mention. The archive keeps 30 days (up to 2,000
 items); news.json holds the newest 150 for the home page.
 
+contracts.json pairs the hand-kept facts in ingest/driver_contracts.json with
+contract, extension and salary stories per driver, kept for a year.
+
 Standard library only, so the 3-hourly workflow can run it without installing anything.
 
   python ingest/news.py
@@ -23,6 +26,10 @@ import xml.etree.ElementTree as ET
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web", "data")
 SOURCES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news_sources.json")
+CONTRACTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "driver_contracts.json")
+CONTRACT_WORDS = re.compile(r"\b(contracts?|contract extension|extends? (?:his |her |their )?(?:deal|contract|stay)|re-?sign(?:s|ed)?|"
+                            r"multi-year|salar(?:y|ies)|earnings|wages?|new deal|signs? [^.]{0,30}(?:deal|contract)|"
+                            r"(?:deal|contract|stay) (?:until|through|to|beyond) (?:the end of )?20\d\d)\b", re.I)
 UA = "Mozilla/5.0 (compatible; outlap/1.0; personal F1 news reader)"
 KEEP_DAYS, KEEP_MAX, LATEST = 30, 2000, 150
 NS = {"atom": "http://www.w3.org/2005/Atom", "media": "http://search.yahoo.com/mrss/",
@@ -199,6 +206,25 @@ def tag(items, dpat, tpat):
         i["tm"] = sorted(set(i["tm"]) | {c for c, p in tpat if p.search(hay)})
 
 
+# ---------- contracts ----------
+
+def contracts(items, now):
+    """Hand-kept facts plus a year of contract and pay stories per driver (at most 12 each)."""
+    facts = json.load(open(CONTRACTS)).get("drivers", {})
+    try:
+        old = json.load(open(os.path.join(OUT, "contracts.json"))).get("news", {})
+    except (OSError, ValueError):
+        old = {}
+    year_ago = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    news = {d: {n["u"]: n for n in v} for d, v in old.items()}
+    for i in items:
+        if 0 < len(i["dr"]) <= 3 and CONTRACT_WORDS.search(f"{i['t']} {i['x']}"):  # about one or two drivers, not a round-up
+            for d in i["dr"]:
+                news.setdefault(d, {})[i["u"]] = {k: i[k] for k in ("t", "u", "s", "d")}
+    news = {d: sorted((n for n in v.values() if n["d"] >= year_ago), key=lambda n: n["d"], reverse=True)[:12] for d, v in news.items()}
+    return dict(updated=now, drivers=facts, news={d: v for d, v in news.items() if v})
+
+
 # ---------- main ----------
 
 def norm_title(t):
@@ -275,6 +301,7 @@ def main():
         with open(path + ".tmp", "w") as f:
             json.dump(data, f, separators=(",", ":"))
         os.replace(path + ".tmp", path)
+    tmp("contracts.json", contracts(items, now))
     tmp("news_archive.json", dict(updated=now, channels=channels, sources=sources, items=items))
     tmp("news.json", dict(updated=now, total=len(items), sources=sources, items=items[:LATEST]))
 

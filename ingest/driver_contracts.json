@@ -1,0 +1,4 @@
+{
+  "_note": "Hand-kept contract and pay facts shown on driver profiles. Teams don't publish contract terms and salaries are media estimates, so fill a field only from a source you trust and always give that source: the app shows it next to the figure. Keys are driver ids (as in web/data/season_*.json). Example entry: \"max_verstappen\": {\"contract_until\": 2028, \"contract_source\": \"https://...\", \"contract_source_name\": \"Red Bull press release\", \"salary_usd\": 60000000, \"salary_year\": 2026, \"salary_source\": \"https://...\", \"salary_source_name\": \"Forbes\"}. Leave out anything you don't have.",
+  "drivers": {}
+}

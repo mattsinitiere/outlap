@@ -851,3 +851,10 @@ input.search:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
   .rl-div { flex: 0 0 auto; writing-mode: vertical-rl; transform: rotate(180deg); padding: 8px 2px; }
   .rl-div::after { width: 1px; height: auto; }
 }
+
+/* contract and pay */
+.c-news { list-style: none; margin: 0; padding: 0; }
+.c-news li { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--hair); }
+.c-news li:last-child { border-bottom: 0; }
+.c-news a { font-weight: 600; text-decoration: none; }
+.c-news a:hover { text-decoration: underline; }
