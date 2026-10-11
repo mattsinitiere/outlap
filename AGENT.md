@@ -22,22 +22,27 @@ Read this file fully before making changes, and keep it accurate as the project 
 ## What this is
 
 OutLap: a personal race-analytics web app (desktop + installable phone app)
-covering 2018 onward. Lap telemetry on the track map, head-to-head comparisons,
-drivers, teams, cars, circuits, races and standings.
+covering 2018 onward. A home page with the next race and the season at a glance,
+lap telemetry on the track map, head-to-head comparisons, drivers, teams, cars,
+circuits, races, standings and an F1 news feed.
 
 - Static site in `web/` (plain HTML/CSS/JS, **no build step**), deployed on Vercel.
 - Python scripts in `ingest/` build JSON files into `web/data/`.
-- A GitHub Action checks for new data every 3 hours (rebuilding the current season when
-  something new is out), does a full refresh every Monday, and commits `web/data`.
+- A GitHub Action runs every 3 hours: it refreshes news and rebuilds the current season
+  when new results or telemetry are out; every Monday it does a full refresh. It commits `web/data`.
+- Clean URLs (`/drivers/max-verstappen/2024`): Vercel rewrites every non-file path to
+  `index.html` and the app routes it. Locally use `python serve.py`, not `http.server`.
 
 ## Repo layout
 
 ```
+serve.py              Local dev server: serves web/ and answers clean URLs with index.html
+vercel.json           Output dir, data cache headers, rewrite of app paths to index.html
 brand/                Logo source files, PNG icons, social card, BRAND.md, build_logo.py
 web/
-  index.html          Shell: boot loader, phone app bar, rail nav, main view, mobile tab bar, settings dialog
+  index.html          Shell (has <base href="/"> so relative assets work on deep paths): boot loader, phone app bar, rail nav, main view, mobile tab bar, settings dialog
   brand/              Logo SVGs used by the app (copies of /brand)
-  app.js              The whole app (single IIFE, ~1,300 lines, sections marked with ===== banners)
+  app.js              The whole app (single IIFE, ~1,900 lines, sections marked with ===== banners)
   styles.css          All styles; later blocks override earlier ones (see "CSS notes")
   sw.js               Service worker (bump cache names on every release)
   manifest.webmanifest, icons/
@@ -52,8 +57,11 @@ ingest/
   cars.json           Chassis name per team and season (edit to fix a car photo or spec match)
   build_preview.py    Bundles web/ + data into one HTML file with Commons photos and brand SVGs embedded
   check_new.py        Cheap stdlib-only check for new results, qualifying or recent missing telemetry
+  news.py             Stdlib-only news collector → news.json, news_archive.json, contracts.json
+  news_sources.json   News sites, Google News switch, YouTube handles, Bluesky accounts, subreddits (edit freely)
+  driver_contracts.json  Hand-kept contract end years and salary estimates, each with a source (starts empty)
 .github/workflows/
-  refresh-data.yml    Check every 3 h (:17), full refresh Monday 10:00 UTC, manual run with optional `since`
+  refresh-data.yml    Every 3 h (:17) news + check, full refresh Monday 10:00 UTC, manual run with optional `since`
   changelog-check.yml Fails code changes that skip CHANGELOG.md
 ```
 
@@ -62,12 +70,15 @@ ingest/
 | File | Contents |
 |---|---|
 | `meta.json` | Seasons available, generation time |
-| `season_YYYY.json` | Races (results, pole, fastest laps), drivers, constructors, standings, `openf1` headshots/colours |
+| `season_YYYY.json` | Races (results, pole, fastest laps, `time` and `sessions` in UTC), drivers, constructors, standings, `openf1` headshots/colours |
 | `telemetry/index.json`, `telemetry/YYYY_RR.json` | Fastest race lap per driver: distance-aligned arrays `d x y spd thr brk gear rpm gx gy`, lap, sectors, headshot |
 | `trends.json` | Per circuit per year: pole, fastest lap, winner, speed trap |
 | `media.json` | `drivers` (Commons photo, official headshot, gallery), `logos[cid][year]`, `cars[year][cid]` |
 | `circuits.json` | Outline `x/y` (decimetres, F1 frame), rotation, corners, elevation per point, facts, about, photos |
 | `info.json` | `drivers[id]` bio, `teams[cid]` about + facts, `cars["YYYY/cid"]` about + specs + gallery |
+| `news.json` | Newest 150 stories for Home: `t` title, `u` link, `s` source, `k` article/video/social, `d` UTC time, `x` summary, `img`, `dr`/`tm` driver and team tags |
+| `news_archive.json` | Same items for 30 days (max 2,000), plus `sources` and the YouTube `channels` id cache |
+| `contracts.json` | `drivers` (copied from `ingest/driver_contracts.json`) and `news[driverId]` contract/salary stories, kept a year |
 
 Units in data are always **metric** (km/h, metres). Conversion happens only in the UI.
 
@@ -84,21 +95,25 @@ python ingest/media.py
 python ingest/circuits.py                   # --force to rebuild existing circuits
 python ingest/wiki_info.py                  # --force [--keep-drivers]
 
-cd web && python -m http.server 8000        # run locally
+python serve.py                             # run locally on :8000 (handles clean URLs)
+python ingest/news.py                       # news, videos, social posts, contract stories
 python ingest/build_preview.py preview.html # single-file preview
 python ingest/check_new.py                  # anything new on Jolpica/OpenF1? (what the 3-hourly job runs)
 ```
 
 ### Automatic refresh (`refresh-data.yml`)
 
+- **Every run:** `news.py` (about a minute) refreshes news and contract stories.
 - **Every 3 hours:** `check_new.py` compares the current season with Jolpica (schedule
   size, result rows, latest qualifying round) and flags races from the last 14 days that
   still lack OpenF1 telemetry. Only then does it run `build_data.py --since <this year>`.
 - **Monday 10:00 UTC and manual runs:** full refresh (season + media, circuits, wiki info).
   A manual run's `since` input rebuilds from an earlier season, e.g. `2023` to backfill
-  OpenF1 telemetry; it's resumable, so re-run it if it hits the 2-hour timeout.
-- A commit happens only if something besides `meta.json`'s timestamp changed, so quiet
-  runs don't trigger Vercel deploys. Runs share a concurrency group and never overlap.
+  OpenF1 telemetry. The season build has a 270-minute limit; whatever finished is still
+  committed (data files are written atomically) and a re-run carries on.
+- A commit happens only if something besides `meta.json`'s timestamp changed. News changes
+  most runs, so expect a "News refresh" commit (and Vercel deploy) about every 3 hours.
+  Runs on the same branch share a concurrency group and never overlap.
 - Scheduled runs only fire from the default branch (`main`), and GitHub can start
   them late or skip them when busy.
 
@@ -111,10 +126,22 @@ and watching the console for errors. Playwright screenshots work well for this.
 - **Data:** `load(path)` caches fetches; `window.__DATA__` / `window.__IMAGES__` replace
   fetches in the preview bundle. Helpers: `meta()`, `season(y)`, `media()`, `infoData()`,
   `circuitsData()`, `telIndex()`, `allSeasons()`.
-- **Routing:** hash routes `#/name/arg?query`. `VIEWS` maps names to async view functions
-  returning `{ html, mount(root, ctx) }`. Use `setQuery({...})` to change query params.
-  Routes: `telemetry standings races drivers driver/:id teams team/:cid cars car/:cid
-  circuits circuit/:id` (`trends` redirects to circuits).
+- **Routing:** views use internal routes (`driver/max_verstappen?y=2026`); the address bar
+  shows clean paths (`/drivers/max-verstappen/2026`). `toPath()` and `fromPath()` translate
+  between them, so add a case to both for a new route. Templates write internal links as
+  `href="#/…"` (also `data-href` on table rows) and `render()` rewrites them via
+  `cleanLinks()`; HTML injected later (like `mountInNews`) must go through `cleanLinks()` too.
+  Use `setQuery({...})` to change state and `go(url)` to navigate. A view can return
+  `canon` to tidy the address once it knows exactly what it shows (`round-5` → race name).
+  Old `#/` links redirect. The file:// preview bundle keeps hash routing (`HASH`).
+  Paths: `/` (home) `/telemetry/:year/:race/:a-vs-:b` `/standings/:year/constructors`
+  `/races/:year/:race` `/drivers/:year` `/drivers/:id/:year` `/teams/:year` `/teams/:id/:year`
+  `/cars/:year` `/cars/:year/:team` `/circuits` `/circuits/:id` `/news?type=&driver=&team=&source=`.
+  Ids are slugs with `-` for `_`; race slugs come from the race name.
+- **Home and Races:** `weekendCard(race, …)` (countdown, sessions in local time, layout) is
+  shared by Home and upcoming rounds on Races; `mountCountdown(root)` drives it.
+- **News:** `newsItem(n, season)` renders one story; `mountInNews` fills the driver/team
+  cards after the page has drawn; `mountContract` fills the driver Contract and Pay card.
 - **Rendering:** `render()` shows a skeleton only if loading takes >120 ms, then either
   swaps the page (new route, with a View Transition) or **morphs** the existing DOM with
   morphdom (same route, query change) so nothing flashes. Keep this behaviour: never
@@ -181,7 +208,11 @@ the formula, update this table and the explanation text on the driver profile.
 - **Nationality:** show flags (`flag(nat)`), not demonyms. Flags load from flagcdn.com
   with an emoji fallback.
 - **Credits:** Commons photos show photographer + licence; Wikipedia text says
-  "From Wikipedia, CC BY-SA" with a link. Estimates (g-force, elevation) are labelled.
+  "From Wikipedia, CC BY-SA" with a link. Estimates (g-force, elevation, salaries) are labelled.
+- **News:** store and show only headline, short summary, thumbnail link and source;
+  always link out to the publisher. Never republish full articles.
+- **Contracts:** never invent contract terms or salaries. Figures only come from
+  `ingest/driver_contracts.json` with a named source.
 
 ### CSS notes
 
@@ -201,10 +232,18 @@ file for the selector first. Consolidating the layers is a welcome cleanup.
 | Open-Meteo elevation | Terrain height (90 m model) | Approximate |
 | Wikipedia / Wikimedia Commons | Bios, facts, specs, photos | CC BY-SA text; photo licences vary |
 | formula1.com | Official headshots, team logos, car images, circuit maps | Linked for personal use only, never embedded in the preview |
+| News site RSS feeds | Headlines, summaries, thumbnails | List in `ingest/news_sources.json`; a failing feed is logged and skipped |
+| Google News RSS | Per-driver and per-team article searches (last 7 days) | No images; links go through Google's redirect |
+| YouTube channel feeds | F1 and team videos | Handles resolved to channel ids once and cached in `news_archive.json` |
+| Reddit RSS | r/formula1 top posts | Reddit sometimes blocks cloud IPs |
+| Bluesky public API | Posts from listed accounts | No key; list starts empty |
+| X / Instagram | Not used | X needs a paid API plan, Instagram has no public API. Ask before adding a paid service |
 
 Known gaps: g-forces read low (4 Hz data); brake is on/off only; corner names exist
-only for Monza (`CORNERS` in app.js); 2026 car photos are matched automatically
-and flagged; some Wikipedia infobox fields are missing for some cars and teams.
+only for Monza (`CORNERS` in app.js); some Wikipedia infobox fields are missing for
+some cars and teams. News tags are name matches (a common surname like Russell can
+over-match) plus the driver or team a Google search was run for. Contract terms
+aren't public and drivers have no official career winnings.
 
 ## Releasing
 
