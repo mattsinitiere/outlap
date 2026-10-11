@@ -132,9 +132,11 @@
   function logo(cid, year, s, size = 28) {
     const url = M.logos?.[cid]?.[year];
     const im = url ? imgTag([url], `${s?.constructors?.[cid]?.name || cid} logo`, "", true) : "";
-    if (im) return `<span class="logo" style="width:${size}px;height:${size}px">${im}</span>`;
     const name = (s?.constructors?.[cid]?.name || cid).replace(/F1 Team|Racing|Team/g, "").trim();
-    return `<span class="logo badge" style="width:${size}px;height:${size}px;background:${teamColor(cid)};font-size:${Math.round(size * .38)}px">${esc(name.slice(0, 3).toUpperCase())}</span>`;
+    const abbr = esc(name.slice(0, 3).toUpperCase()), fs = Math.round(size * .38);
+    // if the logo image fails, its fallback class reveals the team-colour abbreviation underneath
+    if (im) return `<span class="logo" style="width:${size}px;height:${size}px;--c:${teamColor(cid)};font-size:${fs}px">${im}<span class="lg-fb">${abbr}</span></span>`;
+    return `<span class="logo badge" style="width:${size}px;height:${size}px;background:${teamColor(cid)};font-size:${fs}px">${abbr}</span>`;
   }
   const car = (year, cid) => { const k = M.cars?.[year]?.[cid]; if (!k) return null; if (!k.img && k.official) return { ...k, img: k.official, credit: null, verified: true }; return k.img ? k : null; };
   const creditLine = (m, prefix = "Photo", plain = false) => (m && m.credit ? `<span class="credit">${prefix}: ${m.page && !plain ? `<a href="${esc(m.page)}" target="_blank" rel="noopener">${esc(m.credit)}</a>` : esc(m.credit)}${m.license ? `, ${esc(m.license)}` : ""}</span>` : "");
@@ -1627,13 +1629,32 @@
         <span class="tiny muted">${esc(opts.sub || `${t.name}, ${ordinal(t.pos)}, ${fmtPts(t.pts)} Pts`)}</span>${opts.sub2 ? `<span class="tiny muted">${esc(opts.sub2)}</span>` : ""}${creditLine(k, "Photo", opts.link !== false)}${k && k.verified === false ? '<span class="credit">Matched Automatically</span>' : ""}</span></div></${tag}>`;
   };
 
+  // Team card for the Teams page: logo on the team colour, standing, drivers and the season's record
+  function teamCard(y, c, s, maxPts) {
+    const t = teamSeason(s, c), col = teamColor(c);
+    const starts = d => s.races.filter(r => r.results.some(x => x.d === d && x.c === c)).length;
+    const drivers = t.drivers.map(d => ({ d, n: starts(d) })).sort((a, b) => b.n - a.n);
+    const raced = s.races.filter(r => r.results.length).length;
+    const shown = drivers.slice(0, 3);
+    const record = [t.wins && plural(t.wins, "Win", "Wins"), t.pods && plural(t.pods, "Podium", "Podiums"), t.poles && plural(t.poles, "Pole", "Poles")].filter(Boolean).join(", ") || (t.best ? `Best Finish P${t.best}` : "No Races Yet");
+    return `<a class="tm-card" href="#/team/${c}?y=${y}" style="--c:${col};--cd:${dark(col)}">
+      <div class="tm-head">${logo(c, y, s, 64)}<span class="tm-id"><b class="tm-name">${esc(t.name)}</b><span class="tm-nat">${flag(s.constructors[c]?.nat, 14)}</span></span>
+        ${t.pos ? `<span class="tm-pos"><b>P${t.pos}</b><span>${fmtPts(t.pts)} Pts</span></span>` : ""}</div>
+      <div class="tm-bd">
+        <ul class="tm-drivers">${shown.map(x => `<li>${flag(s.drivers[x.d]?.nat, 14)}<span class="clamp1">${esc(s.drivers[x.d]?.name || x.d)}</span>${raced && x.n < raced / 2 ? `<span class="tiny muted">${plural(x.n, "Race", "Races")}</span>` : ""}</li>`).join("")}
+          ${drivers.length > 3 ? `<li class="tiny muted">+${drivers.length - 3} More</li>` : ""}${!drivers.length ? `<li class="tiny muted">Line-up from the first race</li>` : ""}</ul>
+        <div class="tm-foot"><span class="tiny muted">${esc(record)}</span>${t.pos ? `<span class="tm-bar" aria-hidden="true"><i style="width:${(t.pts / maxPts) * 100}%"></i></span>` : ""}</div>
+      </div></a>`;
+  }
+
   async function teamsView(_, q) {
     const y = +(q.get("y") || await latestYear());
     const s = await season(y);
     const ids = s.constructorStandings.length ? s.constructorStandings.map(x => x.c) : Object.keys(s.constructors);
+    const maxPts = Math.max(1, ...s.constructorStandings.map(x => x.pts));
     const html = `
       <div class="page-head"><h1>${y} Teams</h1><div class="controls">${await seasonPick(y)}</div></div>
-      <div class="cards wide">${ids.map(c => { const t = teamSeason(s, c); return carCard(y, c, s, { href: `#/team/${c}?y=${y}`, title: t.name, sub: `${ordinal(t.pos)}, ${fmtPts(t.pts)} Pts`, sub2: t.drivers.map(d => s.drivers[d].name).join(", ") }); }).join("")}</div>`;
+      <div class="cards wide">${ids.map(c => teamCard(y, c, s, maxPts)).join("")}</div>`;
     return { html, mount(root) { onChange(root, "#season", v => setQuery({ y: v })); } };
   }
 

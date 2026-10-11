@@ -81,6 +81,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- The Teams page shows the teams instead of their cars: each card has the team logo on
+  its colour, championship position and points, the drivers with flags, the season's
+  wins, podiums and poles, and a points bar. Car photos stay on the Cars page and each
+  team's profile. A logo that fails to load falls back to the team's initials.
 - Team pages: the car photos section is now called Cars and sits right under the
   team profile instead of near the bottom.
 - Turn labels on the elevation profile (and corner labels on the telemetry chart)

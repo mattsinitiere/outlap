@@ -968,3 +968,27 @@ table.cons tr.on td { background: var(--soft); }
   .st-row { grid-template-columns: 42px minmax(0, 1fr) 46px; gap: 6px; }
   .lap-ref select.pick { flex: 1; max-width: none; }
 }
+
+/* ===== team cards (Teams page) ===== */
+.tm-card { display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); color: var(--ink); text-decoration: none; transition: box-shadow .15s, transform .15s; }
+@media (hover: hover) { .tm-card:hover { box-shadow: var(--lift); transform: translateY(-2px); } }
+.tm-head { position: relative; display: flex; align-items: center; gap: 14px; padding: 18px 16px 20px; min-height: 108px; background: var(--cd); color: #fff; }
+.tm-head::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: var(--c); }
+.tm-head .logo { flex: none; background: #fff; border-radius: 14px; padding: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, .18); }
+.tm-head .logo.badge { padding: 0; box-shadow: inset 0 0 0 3px #fff; }
+.tm-id { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.tm-name { font: 800 28px/1 var(--display); overflow-wrap: anywhere; }
+.tm-nat { display: flex; }
+.tm-pos { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+.tm-pos b { font: 800 34px/1 var(--display); }
+.tm-pos span { font-size: 12px; font-weight: 700; opacity: .85; }
+.tm-bd { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; flex: 1; }
+.tm-drivers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.tm-drivers li { display: flex; align-items: center; gap: 8px; font-weight: 600; min-width: 0; }
+.tm-drivers li .tiny { margin-left: auto; flex: none; }
+.tm-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+.tm-bar { display: block; height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+.tm-bar i { display: block; height: 100%; background: var(--c); border-radius: 3px; }
+.logo .lg-fb { display: none; }
+.logo.fallback { background: var(--c) !important; padding: 0 !important; }
+.logo.fallback .lg-fb { display: grid; place-items: center; width: 100%; height: 100%; color: #fff; font-family: var(--display); font-weight: 800; letter-spacing: .02em; }
