@@ -8,6 +8,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- News collection: every 3 hours OutLap gathers F1 headlines from a dozen news
+  sites, Google News searches for every current driver and team, YouTube videos
+  from F1 and the teams, Reddit, and any Bluesky accounts you list. Each story is
+  tagged with the drivers and teams it mentions and kept for 30 days (up to
+  2,000). Only headlines, a short summary and a link are stored; stories open on
+  the publisher's site. Sources live in `ingest/news_sources.json`.
+- The FastF1 backfill for 2018–2022 skips races it already has, so it can be
+  stopped and restarted on your own computer.
 - OutLap Rating: one 60–99 score per driver per season, built from results with
   teammate head-to-heads weighted heaviest so the car matters less. Shown as a
   breakdown card and headline stat on driver profiles, a badge on driver cards,

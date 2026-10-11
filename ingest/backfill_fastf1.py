@@ -3,19 +3,20 @@
 OpenF1 starts in 2023, so earlier telemetry comes from F1's live-timing archive
 through FastF1. That archive blocks many cloud/datacenter IP ranges, so run this
 from your own computer, not from GitHub Actions. Historical data never changes,
-so you only need to run it once, then commit web/data.
+so you only need to run it once, then commit web/data. It's resumable: races
+already downloaded are skipped, so stop it any time and run it again later.
 
   pip install -r ingest/requirements.txt
-  python ingest/build_data.py --telemetry none      # results/standings first
-  python ingest/backfill_fastf1.py                  # 2018-2022, ~1 min per race
+  python ingest/backfill_fastf1.py                  # 2018-2022, ~1-2 min per race
   python ingest/backfill_fastf1.py --years 2021 --drivers 10
+  python ingest/backfill_fastf1.py --force          # re-download races you already have
 """
 import argparse, os, sys
 
 import fastf1
 
 sys.path.insert(0, os.path.dirname(__file__))
-from build_data import add_telemetry, load, write  # noqa: E402
+from build_data import OUT, add_telemetry, load, write  # noqa: E402
 from telemetry import process_lap  # noqa: E402
 
 CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".fastf1-cache")
@@ -25,6 +26,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--years", default="2018,2019,2020,2021,2022")
     ap.add_argument("--drivers", type=int, default=20)
+    ap.add_argument("--force", action="store_true", help="re-download races already done")
     a = ap.parse_args()
     os.makedirs(CACHE, exist_ok=True)
     fastf1.Cache.enable_cache(CACHE)
@@ -38,7 +40,11 @@ def main():
         for race in season["races"]:
             if not race["results"]:
                 continue
-            print(f"{year} R{race['round']} {race['name']}")
+            done = os.path.exists(os.path.join(OUT, "telemetry", f"{year}_{race['round']:02d}.json"))
+            have_top = trends.get(race["circuit"], {}).get("years", {}).get(str(year), {}).get("topSpeed") is not None
+            if done and have_top and not a.force:
+                continue  # already downloaded
+            print(f"{year} R{race['round']} {race['name']}", flush=True)
             try:
                 s = fastf1.get_session(year, race["round"], "R")
                 s.load(laps=True, telemetry=True, weather=False, messages=False)
@@ -78,7 +84,7 @@ def main():
                                           drivers=traces))
             write("trends.json", trends)
             write("telemetry/index.json", index)
-    print("Done.")
+    print("Done. Now commit and push the data:\n  git add web/data && git commit -m \"FastF1 telemetry 2018-2022\" && git push")
 
 
 if __name__ == "__main__":
