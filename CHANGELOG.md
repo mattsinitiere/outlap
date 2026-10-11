@@ -8,6 +8,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- Contract and Pay card on driver profiles. It lists contract, extension and salary
+  stories about that driver from the news feed (kept for a year), and shows a
+  contract end year and estimated salary when you add them, with their source,
+  to `ingest/driver_contracts.json`. That file starts empty: teams don't publish
+  contract terms, salaries are media estimates, and F1 prize money goes to teams,
+  so there are no official career winnings to show.
 - Home page, now the first thing you see: the next race with a live countdown,
   the weekend's session times in your time zone and the track layout; the season
   at a glance (leader, lead, rounds left, who's still in the title fight,

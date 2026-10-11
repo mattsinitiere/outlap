@@ -640,6 +640,24 @@
         <span class="nw-t">${esc(n.t)}</span>${opts.big && n.x ? `<span class="nw-x">${esc(n.x)}</span>` : ""}
         ${tags.length ? `<span class="nw-tags">${tags.slice(0, opts.big ? 6 : 3).join("")}${tags.length > (opts.big ? 6 : 3) ? `<span class="nw-tag more">+${tags.length - (opts.big ? 6 : 3)}</span>` : ""}</span>` : ""}</span></a>`;
   }
+  const contractsData = () => load("contracts.json").catch(() => null);
+  // Contract and Pay card on driver profiles: hand-kept facts (each with its source) plus contract stories from the news
+  function mountContract(root, did) {
+    const el = $("#contractCard", root); if (!el) return;
+    contractsData().then(c => {
+      const f = c?.drivers?.[did] || {}, news = c?.news?.[did] || [];
+      if (!el.isConnected || (!f.contract_until && !f.salary_usd && !news.length)) return;
+      const src = (u, n) => (okUrl(u) !== "#" ? ` <a class="credit" href="${esc(u)}" target="_blank" rel="noopener">${esc(n || "Source")}</a>` : n ? ` <span class="credit">${esc(n)}</span>` : "");
+      const money = v => `$${(v / 1e6).toFixed(v % 1e6 ? 1 : 0)}M`;
+      el.innerHTML = `<div class="card-head"><h2>Contract and Pay</h2></div>
+        ${f.contract_until || f.salary_usd ? `<div class="facts-grid">
+          ${f.contract_until ? `<div class="fact"><span>Contract Runs Through</span><b>${esc(f.contract_until)}${src(f.contract_source, f.contract_source_name)}</b></div>` : ""}
+          ${f.salary_usd ? `<div class="fact"><span>Estimated Salary${f.salary_year ? `, ${esc(f.salary_year)}` : ""}</span><b>${money(+f.salary_usd)}${src(f.salary_source, f.salary_source_name)}</b></div>` : ""}</div>` : ""}
+        ${news.length ? `<h3 style="margin:12px 0 4px">Contract News</h3><ul class="c-news">${news.slice(0, 6).map(n => `<li><a href="${esc(okUrl(n.u))}" target="_blank" rel="noopener noreferrer">${esc(n.t)}</a><span class="tiny muted">${esc(n.s)}, ${ago(n.d)}</span></li>`).join("")}</ul>` : ""}
+        <p class="tiny muted" style="margin-top:10px">Teams don't publish contract terms and salaries are media estimates. F1 prize money goes to the teams, so drivers have no official career winnings.</p>`;
+      el.hidden = false;
+    });
+  }
   const newsEmpty = `<div class="empty"><h3>No News Yet</h3><p>Headlines, videos and posts arrive with the next data refresh, every 3 hours.</p></div>`;
   // "In the News" card on driver and team pages, filled after the page has drawn
   function mountInNews(root, s, match, moreHref) {
@@ -1358,6 +1376,7 @@
             <div><h3>${esc(cm?.name || `${s.constructors[H.team]?.name} ${y}`)}</h3><p class="small muted">${esc(s.constructors[H.team]?.name)}, ${y} Season</p>${creditLine(cm)}${cm && cm.verified === false ? '<p class="credit">Matched Automatically</p>' : ""}</div>
             <a class="link small" href="#/cars?y=${y}">All ${y} Cars</a></div>
         </section>
+      <section class="card" id="contractCard" hidden></section>
       <section class="card" id="inNews" hidden></section>
       ${wins.length ? `<section class="card"><div class="card-head"><h2>Race Wins</h2><span class="small muted">${plural(wins.length, "Win", "Wins")} since 2018</span></div>
         <div class="win-list${wins.length > 12 ? " collapsed" : ""}" id="winList">${wins.slice().reverse().map(o => `<a href="#/races?y=${o.h.year}&r=${o.r.round}" style="--c:${teamColor(o.x.c)}"><b>${o.h.year}</b><span>${esc(o.r.name.replace(" Grand Prix", ""))}</span><span class="tiny muted">From P${o.x.grid || "–"}</span></a>`).join("")}</div>${wins.length > 12 ? `<button type="button" class="btn more-btn" id="winsMore">Show All ${wins.length} Wins</button>` : ""}</section>` : ""}
@@ -1378,6 +1397,7 @@
     return { html, mount(root, ctx) {
       onChange(root, "#yr", v => setQuery({ y: v }));
       mountInNews(root, seasons[seasons.length - 1], n => n.dr.includes(did), `#/news?d=${did}`);
+      mountContract(root, did);
       const bars = mountBars($("#seasonBars", root), {
         labels: hist.map(h => `'${String(h.year).slice(2)}`), values: hist.map(h => h.pts), height: 210, animate: ctx.first,
         colors: hist.map(h => (h.year === y ? teamColor(h.team) : h.pos === 1 && h.complete ? mix(teamColor(h.team), "#FFFFFF", 0.45) : tint(teamColor(h.team)))), outline: i => (!hist[i].complete ? teamColor(hist[i].team) : null),
