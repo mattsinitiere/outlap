@@ -340,6 +340,7 @@
     news: '<path d="M4 5.5h12v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 9h3.5v9.5a2 2 0 0 1-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 9h5M7.5 12.5h5M7.5 16h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/>',
     more: '<circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/>',
     settings: '<circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    play: '<path d="M8.5 5.8v12.4L18.5 12z" fill="currentColor"/>',
     back: '<path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   };
   const SECTIONS = [["home", "Home"], ["telemetry", "Telemetry"], ["standings", "Standings"], ["races", "Races"], ["drivers", "Drivers"], ["circuits", "Circuits"], ["teams", "Teams"], ["cars", "Cars"], ["news", "News"]];
@@ -413,7 +414,7 @@
     table: () => `${sk(48, "40%", 10)}${sk(180)}<div class="grid-2">${sk(520)}${sk(520)}</div>`,
     detail: () => `${sk(22, "120px", 8)}${sk(300, "100%", 22)}<div class="grid-2">${sk(280)}${sk(280)}</div>${sk(360)}`,
   };
-  const skeletonFor = name => (SKELETON[{ telemetry: "telemetry", drivers: "list", teams: "list", cars: "list", circuits: "list", standings: "table", races: "table" }[name] || "detail"])();
+  const skeletonFor = name => (SKELETON[{ home: "table", news: "list", telemetry: "telemetry", drivers: "list", teams: "list", cars: "list", circuits: "list", standings: "table", races: "table" }[name] || "detail"])();
 
   const progress = (() => {
     const bar = $("#progress"); let t = null;
@@ -486,6 +487,226 @@
     progress.done();
   }
   window.addEventListener("hashchange", render);
+
+  // ===================================================================
+  // NEWS (shared by Home, News and the driver and team pages)
+  // ===================================================================
+  const newsLatest = () => load("news.json").catch(() => null);
+  const newsArchive = () => load("news_archive.json").catch(() => newsLatest());
+  const NEWS_KIND = { article: "Article", video: "Video", social: "Social" };
+  const okUrl = u => (/^https?:\/\//i.test(u || "") ? u : "#");
+  const ago = iso => {
+    const m = Math.max(0, (Date.now() - new Date(iso)) / 60000);
+    if (m < 60) return `${Math.max(1, Math.round(m))}m ago`;
+    if (m < 1440) return `${Math.round(m / 60)}h ago`;
+    const d = Math.round(m / 1440);
+    return d < 7 ? `${d}d ago` : new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+  function newsItem(n, s, opts = {}) {
+    const tags = [
+      ...(n.dr || []).filter(d => s?.drivers?.[d]).map(d => `<span class="nw-tag" style="--c:${teamColor(teamOf(s, d))}">${esc(s.drivers[d].code)}</span>`),
+      ...(n.tm || []).filter(c => s?.constructors?.[c]).map(c => `<span class="nw-tag" style="--c:${teamColor(c)}">${esc(s.constructors[c].name)}</span>`),
+    ];
+    const thumb = n.img ? imgTag([n.img], "") : "";
+    const tile = esc((n.s || "?").replace(/^r\//, "").replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase());
+    return `<a class="nw${opts.big ? " nw-big" : ""}" href="${esc(okUrl(n.u))}" target="_blank" rel="noopener noreferrer">
+      <span class="nw-ph${thumb ? "" : " fallback"}">${thumb}<span class="nw-tile">${tile}</span>${n.k === "video" ? `<span class="nw-play">${icon("play")}</span>` : ""}</span>
+      <span class="nw-bd"><span class="nw-meta"><b>${esc(n.s)}</b><span>${ago(n.d)}</span>${n.k !== "article" ? `<span class="nw-kind">${NEWS_KIND[n.k] || ""}</span>` : ""}</span>
+        <span class="nw-t">${esc(n.t)}</span>${opts.big && n.x ? `<span class="nw-x">${esc(n.x)}</span>` : ""}
+        ${tags.length ? `<span class="nw-tags">${tags.slice(0, opts.big ? 6 : 3).join("")}${tags.length > (opts.big ? 6 : 3) ? `<span class="nw-tag more">+${tags.length - (opts.big ? 6 : 3)}</span>` : ""}</span>` : ""}</span></a>`;
+  }
+  const newsEmpty = `<div class="empty"><h3>No News Yet</h3><p>Headlines, videos and posts arrive with the next data refresh, every 3 hours.</p></div>`;
+  // "In the News" card on driver and team pages, filled after the page has drawn
+  function mountInNews(root, s, match, moreHref) {
+    const el = $("#inNews", root); if (!el) return;
+    newsArchive().then(a => {
+      const items = (a?.items || []).filter(match);
+      if (!items.length || !el.isConnected) return;
+      el.innerHTML = `<div class="card-head"><h2>In the News</h2><a class="link small" href="${moreHref}">${items.length === 1 ? "1 Story" : `All ${items.length} Stories`}</a></div>
+        <div class="nw-list cols">${items.slice(0, 6).map(n => newsItem(n, s)).join("")}</div>`;
+      el.hidden = false;
+      $$("img", el).forEach(im => { if (im.complete && im.naturalWidth) im.classList.add("in"); });
+    });
+  }
+
+  // ===================================================================
+  // HOME
+  // ===================================================================
+  const at = (d, t) => (t ? new Date(`${d}T${t.endsWith("Z") ? t : t + "Z"}`) : null);
+  const fmtWhen = (date, opts) => date.toLocaleString("en-US", opts);
+  function weekend(r) {
+    const list = [...(r.sessions || []).map(x => ({ n: x.n, d: x.d, at: at(x.d, x.t) })), { n: "Race", d: r.date, at: at(r.date, r.time), race: true }];
+    return list.sort((a, b) => (a.at && b.at ? a.at - b.at : a.d.localeCompare(b.d)));
+  }
+  async function homeView(_, q) {
+    const y = await latestYear();
+    const [s, C, T, news, prev] = await Promise.all([season(y), circuitsData(), trendsData(), newsLatest(), season(y - 1).catch(() => null)]);
+    const done = s.races.filter(r => r.results.length), total = s.races.length;
+    const next = s.races.find(r => !r.results.length);
+    const last = done[done.length - 1];
+    const now = Date.now();
+
+    // next race
+    let nextCard = "";
+    if (next) {
+      const c = C[next.circuit] || {}, sess = weekend(next);
+      const upcoming = sess.find(x => x.at && x.at.getTime() > now);
+      const race = sess[sess.length - 1];
+      const live = sess.find(x => x.at && x.at.getTime() <= now && now < x.at.getTime() + (x.race ? 2.5 : 1.25) * 3600e3);
+      const target = upcoming?.at;
+      const lastWin = (() => {
+        const yrs = Object.keys(T[next.circuit]?.years || {}).map(Number).filter(v => v < y).sort((a, b) => b - a);
+        if (!yrs.length) return null;
+        const yy = yrs[0], code = T[next.circuit].years[yy].winner;
+        const pr = yy === y - 1 && prev ? prev.races.find(r => r.circuit === next.circuit && r.results.length) : null;
+        return { y: yy, name: pr ? prev.drivers[pr.results[0].d].name : code };
+      })();
+      const firstDay = new Date(sess[0].d + "T12:00:00"), raceDay = new Date(next.date + "T12:00:00");
+      const range = sess[0].d === next.date ? longDate(next.date) : `${firstDay.toLocaleDateString("en-US", { month: "short", day: "numeric" })} to ${raceDay.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+      nextCard = `<section class="next-race">
+        <div class="nr-main">
+          <p class="nr-kicker">${live ? `<span class="live-dot"></span>${esc(live.n)} Live Now` : `Next Race, Round ${next.round} of ${total}`}</p>
+          <h2 class="nr-name">${esc(next.name)}</h2>
+          <p class="nr-where"><a href="#/circuit/${next.circuit}">${esc(next.circuitName)}</a>, ${esc(next.locality)}, ${esc(range)}</p>
+          ${target ? `<div class="cd" id="countdown" data-to="${target.toISOString()}" aria-label="Time until ${esc(upcoming.n)}">
+            <div><b data-u="d">–</b><span>Days</span></div><div><b data-u="h">–</b><span>Hours</span></div><div><b data-u="m">–</b><span>Minutes</span></div>
+            <p class="cd-what">Until ${esc(upcoming.n)}</p></div>` : live ? "" : `<p class="cd-what">${race.at ? "" : "Session times arrive with the next data refresh."}</p>`}
+          <ol class="sessions">${sess.map(x => {
+            const state = x.at ? (x === live ? "live" : x.at.getTime() < now ? "past" : x === upcoming ? "next" : "") : "";
+            const when = x.at ? `${fmtWhen(x.at, { weekday: "short" })} ${fmtWhen(x.at, { hour: "numeric", minute: "2-digit" })}` : new Date(x.d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+            return `<li class="${state}"><span>${esc(x.n)}</span><b>${esc(when)}</b></li>`; }).join("")}</ol>
+          ${sess.some(x => x.at) ? `<p class="nr-note">Times shown in your time zone.</p>` : ""}
+        </div>
+        <a class="nr-map" href="#/circuit/${next.circuit}" aria-label="${esc(next.circuitName)} Layout">${c.x ? outlineSvg(c, { color: "#FFFFFF", pad: 0.06 }) : ""}
+          <span class="nr-facts">${c.x ? `<span><b>${U.lapNum(lapKm(c))}</b> ${U.lapUnit()} Lap</span>` : ""}${(c.corners || []).length || c.facts?.turns ? `<span><b>${esc((c.corners || []).length || c.facts.turns)}</b> Turns</span>` : ""}${lastWin ? `<span>${lastWin.y} Winner <b>${esc(lastWin.name)}</b></span>` : ""}</span></a>
+      </section>`;
+    } else if (s.driverStandings[0]) {
+      const ch = s.driverStandings[0];
+      nextCard = `<section class="next-race done"><div class="nr-main"><p class="nr-kicker">${y} Season Complete</p><h2 class="nr-name">${esc(s.drivers[ch.d].name)}, World Champion</h2>
+        <p class="nr-where">${fmtPts(ch.pts)} points and ${plural(ch.wins, "win", "wins")} for ${esc(s.constructors[ch.c]?.name || "")}</p></div></section>`;
+    }
+
+    // last race
+    const lastCard = last ? (() => {
+      const fl = last.results.find(x => x.flr === 1);
+      return `<section class="card last-race"><div class="card-head"><h2>Last Race</h2><a class="link small" href="#/races?y=${y}&r=${last.round}">Race Report</a></div>
+        <p class="small muted" style="margin:-6px 0 10px">Round ${last.round}, ${esc(last.name)}, ${shortDate(last.date)}</p>
+        <ol class="mini-pod">${last.results.slice(0, 3).map(x => `<li><span class="p">P${x.pos}</span>${driverLink(x.d, s)}<span class="tiny muted">${esc(s.constructors[x.c]?.name || "")}</span></li>`).join("")}</ol>
+        <div class="mini-facts">${last.pole ? `<div><span>Pole</span><b>${esc(s.drivers[last.pole.d]?.code || "")}</b></div>` : ""}${fl ? `<div><span>Fastest Lap</span><b class="purple">${fmtLap(fl.fl)}</b></div>` : ""}
+          <div><span>Finishers</span><b>${last.results.filter(classified).length}</b></div></div></section>`;
+    })() : "";
+
+    // season numbers
+    const L1 = s.driverStandings[0], L2 = s.driverStandings[1];
+    const left = total - s.afterRound;
+    const alive = L1 ? s.driverStandings.filter(x => x.pts + left * 25 >= L1.pts).length : 0;
+    const winners = new Set(done.map(r => r.results[0].d)).size;
+    const lead = seasonLeaders(s);
+    const poles = lead.find(l => l.label === "Most Poles");
+    const stats = L1 ? `<section class="card"><div class="card-head"><h2>${y} at a Glance</h2><span class="tiny muted">After Round ${s.afterRound} of ${total}</span></div>
+      <div class="glance">
+        <a href="#/driver/${L1.d}?y=${y}" style="--c:${teamColor(L1.c)}"><span>Leader</span><b>${esc(lastName(s, L1.d))}</b><em>${fmtPts(L1.pts)} Pts</em></a>
+        ${L2 ? `<a href="#/driver/${L2.d}?y=${y}" style="--c:${teamColor(L2.c)}"><span>Lead</span>${count(L1.pts - L2.pts)}<em>Over ${esc(lastName(s, L2.d))}</em></a>` : ""}
+        <div><span>Rounds Left</span>${count(left)}<em>Up to ${left * 25} GP Pts</em></div>
+        <div><span>In the Title Fight</span>${count(alive)}<em>${alive === 1 ? "Title Decided" : "Drivers Still in Reach"}</em></div>
+        <div><span>Different Winners</span>${count(winners)}<em>In ${plural(done.length, "Race", "Races")}</em></div>
+        ${poles ? `<a href="#/driver/${poles.did}?y=${y}" style="--c:${teamColor(teamOf(s, poles.did))}"><span>Most Poles</span><b>${esc(lastName(s, poles.did))}</b><em>${poles.v} Poles</em></a>` : ""}
+      </div><p class="tiny muted" style="margin-top:10px">Points still available count Grand Prix wins only; sprints aren't included.</p></section>` : "";
+
+    // leaderboards
+    const maxD = Math.max(1, ...s.driverStandings.map(x => x.pts)), maxC = Math.max(1, ...s.constructorStandings.map(x => x.pts));
+    const boards = `
+      <section class="card"><div class="card-head"><h2>Drivers</h2><a class="link small" href="#/standings?y=${y}">Full Standings</a></div>
+        <div class="table-wrap"><table class="board"><tbody>${s.driverStandings.slice(0, 10).map(r => `<tr data-href="#/driver/${r.d}?y=${y}"><td class="pos">${r.pos || "–"}</td><td>${driverLink(r.d, s)}</td>
+          <td class="r num pts">${fmtPts(r.pts)}</td><td class="hide-sm barcell"><div class="bar" style="width:${(r.pts / maxD) * 100}%;background:${teamColor(r.c)}"></div></td></tr>`).join("")}</tbody></table></div></section>
+      <section class="card"><div class="card-head"><h2>Constructors</h2><a class="link small" href="#/standings?y=${y}&t=constructors">Full Standings</a></div>
+        <div class="table-wrap"><table class="board"><tbody>${s.constructorStandings.map(r => `<tr data-href="#/team/${r.c}?y=${y}"><td class="pos">${r.pos || "–"}</td><td>${teamLink(r.c, s, { size: 22 })}</td>
+          <td class="r num pts">${fmtPts(r.pts)}</td><td class="hide-sm barcell"><div class="bar" style="width:${(r.pts / maxC) * 100}%;background:${teamColor(r.c)}"></div></td></tr>`).join("")}</tbody></table></div></section>`;
+
+    // news
+    const kind = ["article", "video", "social"].includes(q.get("nk")) ? q.get("nk") : "all";
+    const items = (news?.items || []).filter(n => kind === "all" || n.k === kind);
+    const featured = items.find(n => n.img) || items[0];
+    const rest = items.filter(n => n !== featured).slice(0, 10);
+    const newsCard = `<section class="card"><div class="card-head"><h2>Latest News</h2>
+        ${seg("newsKind", [["all", "All"], ["article", "Articles"], ["video", "Videos"], ["social", "Social"]], kind, "News Type")}</div>
+      ${news ? (items.length ? `<div class="nw-home">${newsItem(featured, s, { big: true })}<div class="nw-list cols">${rest.map(n => newsItem(n, s)).join("")}</div></div>
+        <div class="nw-foot"><span class="tiny muted">${news.total.toLocaleString()} stories from ${plural(news.sources.length, "source", "sources")}, updated ${ago(news.updated)}</span><a class="btn" href="#/news${kind === "all" ? "" : `?k=${kind}`}">${icon("news", 18)}More News</a></div>`
+        : `<p class="muted small">Nothing of this type in the latest batch.</p>`) : newsEmpty}
+    </section>`;
+
+    const html = `
+      <div class="page-head"><div><h1>${y} Season</h1><p class="sub">${next ? `${done.length} of ${total} Rounds Complete` : "Final Standings"}</p></div></div>
+      ${nextCard}
+      ${stats}
+      <div class="home-grid">${lastCard}${boards}</div>
+      ${newsCard}`;
+    return { html, mount(root) {
+      onSeg(root, "#newsKind", v => setQuery({ nk: v === "all" ? null : v }));
+      const cd = $("#countdown", root); if (!cd) return;
+      const to = new Date(cd.dataset.to).getTime();
+      const tick = () => {
+        const ms = Math.max(0, to - Date.now()), m = Math.floor(ms / 60000);
+        const v = { d: Math.floor(m / 1440), h: Math.floor((m % 1440) / 60), m: m % 60 };
+        $$("[data-u]", cd).forEach(b => { b.textContent = String(v[b.dataset.u]).padStart(2, "0"); });
+        if (ms === 0) render();
+      };
+      tick(); const t = setInterval(tick, 15000);
+      return () => clearInterval(t);
+    } };
+  }
+
+  // ===================================================================
+  // NEWS PAGE
+  // ===================================================================
+  async function newsView(_, q) {
+    const [arc, y] = await Promise.all([newsArchive(), latestYear()]);
+    const s = await season(y);
+    const all = arc?.items || [];
+    if (!all.length) return { html: `<div class="page-head"><h1>News</h1></div>${newsEmpty}` };
+    const kind = ["article", "video", "social"].includes(q.get("k")) ? q.get("k") : "all";
+    const d = s.drivers[q.get("d")] ? q.get("d") : "", t = s.constructors[q.get("t")] ? q.get("t") : "";
+    const sources = arc.sources || [...new Set(all.map(n => n.s))].sort();
+    const src = sources.includes(q.get("s")) ? q.get("s") : "";
+    const list = all.filter(n => (kind === "all" || n.k === kind) && (!d || n.dr.includes(d)) && (!t || n.tm.includes(t)) && (!src || n.s === src));
+    const nD = id => all.filter(n => n.dr.includes(id)).length, nT = id => all.filter(n => n.tm.includes(id)).length;
+    const drivers = s.driverStandings.length ? s.driverStandings.map(x => x.d) : Object.keys(s.drivers);
+    const teams = s.constructorStandings.length ? s.constructorStandings.map(x => x.c) : Object.keys(s.constructors);
+    const filtered = d || t || src || kind !== "all";
+    const html = `
+      <div class="page-head"><div><h1>News</h1><p class="sub">${list.length.toLocaleString()} of ${all.length.toLocaleString()} Stories, Updated ${ago(arc.updated)}</p></div>
+        <div class="controls">${seg("kind", [["all", "All"], ["article", "Articles"], ["video", "Videos"], ["social", "Social"]], kind, "News Type")}</div></div>
+      <section class="card nw-filters">
+        <select class="pick" id="nwDriver" aria-label="Driver"><option value="">All Drivers</option>${drivers.map(id => `<option value="${id}"${id === d ? " selected" : ""}>${esc(s.drivers[id].name)} (${nD(id)})</option>`).join("")}</select>
+        <select class="pick" id="nwTeam" aria-label="Team"><option value="">All Teams</option>${teams.map(id => `<option value="${id}"${id === t ? " selected" : ""}>${esc(s.constructors[id].name)} (${nT(id)})</option>`).join("")}</select>
+        <select class="pick" id="nwSource" aria-label="Source"><option value="">All Sources</option>${sources.map(x => `<option value="${esc(x)}"${x === src ? " selected" : ""}>${esc(x)}</option>`).join("")}</select>
+        <input class="search" id="nwSearch" type="search" placeholder="Search Headlines" aria-label="Search Headlines" autocomplete="off">
+        ${filtered ? `<a class="link small" href="#/news">Clear Filters</a>` : ""}
+      </section>
+      <section class="card"><div class="nw-list cols" id="nwList"></div><p class="muted small" id="nwNone" hidden>No stories match.</p>
+        <div class="nw-foot"><span class="tiny muted" id="nwCount"></span><button type="button" class="btn" id="nwMore" hidden>Show More</button></div></section>
+      <p class="foot">Headlines and summaries link to the publisher. OutLap stores only the headline, a short summary and a thumbnail link, for 30 days.</p>`;
+    return { html, mount(root) {
+      onSeg(root, "#kind", v => setQuery({ k: v === "all" ? null : v }));
+      onChange(root, "#nwDriver", v => setQuery({ d: v }));
+      onChange(root, "#nwTeam", v => setQuery({ t: v }));
+      onChange(root, "#nwSource", v => setQuery({ s: v }));
+      const box = $("#nwList", root), more = $("#nwMore", root), none = $("#nwNone", root), cnt = $("#nwCount", root), sea = $("#nwSearch", root);
+      let shown = 30, words = [];
+      const draw = () => {
+        const hits = words.length ? list.filter(n => { const h = `${n.t} ${n.x} ${n.s}`.toLowerCase(); return words.every(w => h.includes(w)); }) : list;
+        box.innerHTML = hits.slice(0, shown).map(n => newsItem(n, s)).join("");
+        none.hidden = hits.length > 0; more.hidden = hits.length <= shown;
+        cnt.textContent = hits.length ? `Showing ${Math.min(shown, hits.length)} of ${hits.length.toLocaleString()}` : "";
+        $$("img", box).forEach(im => { if (im.complete && im.naturalWidth) im.classList.add("in"); });
+      };
+      let deb = null;
+      sea.oninput = () => { clearTimeout(deb); deb = setTimeout(() => { words = sea.value.toLowerCase().split(/\s+/).filter(Boolean); shown = 30; draw(); }, 150); };
+      more.onclick = () => { shown += 30; draw(); };
+      draw();
+      return () => clearTimeout(deb);
+    } };
+  }
 
   // ===================================================================
   // TELEMETRY
@@ -938,6 +1159,7 @@
             <div><h3>${esc(cm?.name || `${s.constructors[H.team]?.name} ${y}`)}</h3><p class="small muted">${esc(s.constructors[H.team]?.name)}, ${y} Season</p>${creditLine(cm)}${cm && cm.verified === false ? '<p class="credit">Matched Automatically</p>' : ""}</div>
             <a class="link small" href="#/cars?y=${y}">All ${y} Cars</a></div>
         </section>
+      <section class="card" id="inNews" hidden></section>
       ${wins.length ? `<section class="card"><div class="card-head"><h2>Race Wins</h2><span class="small muted">${plural(wins.length, "Win", "Wins")} since 2018</span></div>
         <div class="win-list${wins.length > 12 ? " collapsed" : ""}" id="winList">${wins.slice().reverse().map(o => `<a href="#/races?y=${o.h.year}&r=${o.r.round}" style="--c:${teamColor(o.x.c)}"><b>${o.h.year}</b><span>${esc(o.r.name.replace(" Grand Prix", ""))}</span><span class="tiny muted">From P${o.x.grid || "–"}</span></a>`).join("")}</div>${wins.length > 12 ? `<button type="button" class="btn more-btn" id="winsMore">Show All ${wins.length} Wins</button>` : ""}</section>` : ""}
       <section class="card">
@@ -956,6 +1178,7 @@
         <div class="gallery">${gallery.map(p => `<figure class="g-item"><a class="g-ph" href="${esc(p.page)}" target="_blank" rel="noopener">${imgTag([p.img], d.name)}</a><figcaption>${esc(p.credit)}${p.license ? `, ${esc(p.license)}` : ""}</figcaption></figure>`).join("")}</div></section>` : ""}`;
     return { html, mount(root, ctx) {
       onChange(root, "#yr", v => setQuery({ y: v }));
+      mountInNews(root, seasons[seasons.length - 1], n => n.dr.includes(did), `#/news?d=${did}`);
       const bars = mountBars($("#seasonBars", root), {
         labels: hist.map(h => `'${String(h.year).slice(2)}`), values: hist.map(h => h.pts), height: 210, animate: ctx.first,
         colors: hist.map(h => (h.year === y ? teamColor(h.team) : h.pos === 1 && h.complete ? mix(teamColor(h.team), "#FFFFFF", 0.45) : tint(teamColor(h.team)))), outline: i => (!hist[i].complete ? teamColor(hist[i].team) : null),
@@ -1042,6 +1265,7 @@
           <div class="driver-runs">${(() => { const m2 = {}; hist.forEach(h => h.drivers.forEach(d => { m2[d] = m2[d] || { s: h.s, ys: [] }; m2[d].ys.push(h.year); m2[d].s = h.s; })); return Object.entries(m2).sort((a, b) => b[1].ys[b[1].ys.length - 1] - a[1].ys[a[1].ys.length - 1] || b[1].ys.length - a[1].ys.length).map(([d, v]) => `<a href="#/driver/${d}?y=${v.ys[v.ys.length - 1]}"><b>${esc(v.s.drivers[d].name)}</b><span class="tiny muted">${v.ys.length > 1 ? `${v.ys[0]}–${v.ys[v.ys.length - 1]}` : v.ys[0]}, ${plural(v.ys.length, "Season", "Seasons")}</span></a>`).join(""); })()}</div>
         </section>
       </div>
+      <section class="card" id="inNews" hidden></section>
       <div class="grid-2">
         <section class="card"><h2 style="margin-bottom:8px">Championship Position</h2><div id="posChart"></div></section>
         <section class="card"><h2 style="margin-bottom:8px">Points by Season</h2><div id="ptsChart"></div></section>
@@ -1054,6 +1278,8 @@
           <td><span class="who-list">${h.drivers.map(d => driverLink(d, h.s, { code: false })).join("")}</span></td>
           <td class="r">${ordinal(h.pos)}</td><td class="r">${h.wins}</td><td class="r hide-sm">${h.pods}</td><td class="r hide-sm">${h.poles}</td><td class="r num pts">${fmtPts(h.pts)}</td></tr>`).join("")}</tbody></table></div></section>`;
     return { html, mount(root, ctx) {
+      const cur = seasons[seasons.length - 1], curId = Object.keys(cur.constructors).find(k => lineage(k) === line);
+      mountInNews(root, cur, n => n.tm.some(x => lineage(x) === line), curId ? `#/news?t=${curId}` : "#/news");
       const years = hist.map(h => h.year);
       const tipTitle = i => `${hist[i].year}, ${hist[i].name}`;
       const extra = i => `<span class="r"><span>Wins</span><b>${hist[i].wins}</b></span><span class="r"><span>Podiums</span><b>${hist[i].pods}</b></span>${hist[i].complete ? "" : '<span class="d">Season in Progress</span>'}`;
@@ -1394,7 +1620,7 @@
   }
 
   // ===================================================================
-  const VIEWS = { telemetry: telemetryView, standings: standingsView, races: racesView, drivers: driversView, driver: driverView, teams: teamsView, team: teamView,
+  const VIEWS = { home: homeView, news: newsView, telemetry: telemetryView, standings: standingsView, races: racesView, drivers: driversView, driver: driverView, teams: teamsView, team: teamView,
     circuits: circuitsView, circuit: circuitView, car: carView, trends: (a, q) => (q.get("c") ? circuitView(q.get("c"), q) : circuitsView(a, q)), cars: carsView };
   render();
   if ("serviceWorker" in navigator && location.protocol === "https:" && !preview) navigator.serviceWorker.register("sw.js").catch(() => {});

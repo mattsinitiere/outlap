@@ -8,6 +8,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- Home page, now the first thing you see: the next race with a live countdown,
+  the weekend's session times in your time zone and the track layout; the season
+  at a glance (leader, lead, rounds left, who's still in the title fight,
+  different winners, most poles); the last race's podium; driver and constructor
+  leaderboards; and the latest news at the bottom.
+- News page with every story from the last 30 days, filterable by type
+  (articles, videos, social), driver, team and source, with headline search.
+  Driver and team pages show an In the News card with their latest stories.
+- New page icons: a trophy for Races, a driver in a helmet for Drivers, a pit
+  garage for Teams, a front-on car for Cars, plus Home and News.
 - News collection: every 3 hours OutLap gathers F1 headlines from a dozen news
   sites, Google News searches for every current driver and team, YouTube videos
   from F1 and the teams, Reddit, and any Bluesky accounts you list. Each story is
@@ -35,6 +45,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- Navigation: Home and News join the rail. On phones the tab bar is Home,
+  Telemetry, Standings and Drivers, with everything else under More.
 - Long data refreshes save their progress: if building seasons runs out of time,
   everything that finished is still committed and the next run carries on. Data
   files are written safely so a cut-off run never leaves a broken file.
