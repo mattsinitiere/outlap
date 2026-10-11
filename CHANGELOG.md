@@ -8,6 +8,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- Search everything from anywhere: press Cmd+K (Ctrl+K on Windows) or / on any
+  page, use the Search button at the top right of Home, or tap the magnifier in
+  the phone app bar. It finds drivers, teams, cars, circuits, every race since
+  2018, lap telemetry, season pages and news headlines as you type. Add a year to
+  narrow it ("2021 Verstappen" opens his 2021 profile). Arrow keys and Enter pick
+  a result, and your recent picks show when the box is empty.
+- Circuits page sorting: Calendar (a season's rounds in order, then the circuits
+  not on that calendar, most recently raced first), Name (A to Z) or Location
+  (grouped by region, then country). A season picker shows any year's calendar.
 - Team photos on team profiles: garage, pit-stop and team shots from Wikimedia
   Commons (credited), with the first one as the page's header image and the rest
   in a Team Photos gallery. Teams without photos keep their car in the header.

@@ -33,7 +33,7 @@ Keep it private, for personal use. Don't publish it to an app store.
 - **Teams:** a profile per team that follows name changes (Racing Point to Aston
   Martin, Toro Rosso to Racing Bulls and so on), interactive history charts and
   every car it raced.
-- **Circuits:** every track raced since 2018. Layout with official turn numbers,
+- **Circuits:** every track raced since 2018, sorted by a season's calendar, by name or by region. Layout with official turn numbers,
   start line and direction, elevation map and profile, facts (length, turns,
   opened, first Grand Prix, lap record, pit-stop time loss, capacity, designer),
   a description, photos, results and pole/fastest-lap/speed-trap trends.
@@ -44,6 +44,10 @@ Keep it private, for personal use. Don't publish it to an app store.
   driver and team, YouTube videos from F1 and the teams, and Reddit, refreshed
   every 3 hours and kept for 30 days. Filter by type, driver, team or source,
   or search. Stories open on the publisher's site.
+
+- **Search:** Cmd+K (Ctrl+K) or / on any page, the Search button on Home, or the
+  magnifier in the phone app bar. Finds drivers, teams, cars, circuits, races,
+  telemetry and news; add a year to narrow it.
 
 ## Brand
 

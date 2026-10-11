@@ -342,6 +342,7 @@
     more: '<circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/>',
     settings: '<circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     play: '<path d="M8.5 5.8v12.4L18.5 12z" fill="currentColor"/>',
+    search: '<circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5 20.5 20.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
     back: '<path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   };
   const SECTIONS = [["home", "Home"], ["telemetry", "Telemetry"], ["standings", "Standings"], ["races", "Races"], ["drivers", "Drivers"], ["circuits", "Circuits"], ["teams", "Teams"], ["cars", "Cars"], ["news", "News"]];
@@ -442,7 +443,7 @@
       case "team": p = `/teams/${slug(arg)}${yr}`; break;
       case "cars": p = `/cars${yr}`; break;
       case "car": p = `/cars${yr}/${slug(arg)}`; break;
-      case "circuits": p = "/circuits"; break;
+      case "circuits": p = `/circuits${yr}`; if (g("sort")) qs.set("sort", g("sort")); break;
       case "circuit": p = `/circuits/${slug(arg)}`; if (g("m") === "elev") qs.set("view", "elevation"); break;
       case "trends": p = g("c") ? `/circuits/${slug(g("c"))}` : "/circuits"; break;
       case "news": p = "/news";
@@ -478,7 +479,10 @@
         else if (seg[1] && !YEAR.test(seg[1])) { name = "car"; arg = unslug(seg[1]); }
         else set("y", seg[1]);
         break;
-      case "circuits": if (seg[1]) { name = "circuit"; arg = unslug(seg[1]); if (sp.get("view") === "elevation") set("m", "elev"); } break;
+      case "circuits":
+        if (seg[1] && !YEAR.test(seg[1])) { name = "circuit"; arg = unslug(seg[1]); if (sp.get("view") === "elevation") set("m", "elev"); }
+        else { set("y", seg[1]); set("sort", sp.get("sort")); }
+        break;
       case "news": set("k", sp.get("type")); set("d", sp.get("driver") && unslug(sp.get("driver"))); set("t", sp.get("team") && unslug(sp.get("team"))); set("s", sp.get("source")); break;
       default: name = "home";
     }
@@ -807,7 +811,8 @@
     </section>`;
 
     const html = `
-      <div class="page-head"><div><h1>${y} Season</h1><p class="sub">${next ? `${done.length} of ${total} Rounds Complete` : "Final Standings"}</p></div></div>
+      <div class="page-head"><div><h1>${y} Season</h1><p class="sub">${next ? `${done.length} of ${total} Rounds Complete` : "Final Standings"}</p></div>
+        <button type="button" class="search-btn" data-open-search aria-label="Search (${searchKey})">${icon("search", 18)}<span>Search</span><kbd>${searchKey}</kbd></button></div>
       ${nextCard}
       ${stats}
       <div class="home-grid">${lastCard}${boards}</div>
@@ -1748,26 +1753,51 @@
     return `<svg viewBox="${vb}" role="img" aria-label="${esc(c.name)} Layout"><path class="outline" d="M${G.pts.map(p => `${p[0].toFixed(0)},${p[1].toFixed(0)}`).join("L")}Z" fill="none" stroke="${opts.color || "#0F1218"}" stroke-width="${sw.toFixed(0)}" stroke-linejoin="round" pathLength="1"/></svg>`;
   }
 
-  async function circuitsView() {
-    const [C, y] = await Promise.all([circuitsData(), latestYear()]);
+  const REGIONS = [
+    ["Europe", ["Austria", "Azerbaijan", "Belgium", "France", "Germany", "Hungary", "Italy", "Monaco", "Netherlands", "Portugal", "Russia", "Spain", "Turkey", "UK"]],
+    ["Middle East", ["Bahrain", "Qatar", "Saudi Arabia", "UAE"]],
+    ["Asia and Oceania", ["Australia", "China", "Japan", "Malaysia", "Singapore"]],
+    ["Americas", ["Brazil", "Canada", "Mexico", "USA"]],
+  ];
+  const regionOf = country => (REGIONS.find(([, cs]) => cs.includes(country)) || ["Elsewhere"])[0];
+  async function circuitsView(_, q) {
+    const [C, m] = await Promise.all([circuitsData(), meta()]);
+    const y = m.seasons.includes(+q.get("y")) ? +q.get("y") : Math.max(...m.seasons);
+    const sort = ["name", "location"].includes(q.get("sort")) ? q.get("sort") : "calendar";
     const s = await season(y);
-    const cal = s.races.map(r => r.circuit).filter(id => C[id]);
-    const others = Object.keys(C).filter(id => !cal.includes(id)).sort((a, b) => C[a].name.localeCompare(C[b].name));
+    const onCal = {}; s.races.forEach(r => { if (C[r.circuit] && !onCal[r.circuit]) onCal[r.circuit] = r; });
+    const byName = (a, b) => C[a].name.localeCompare(C[b].name);
+    const lastRaced = id => Math.max(0, ...(C[id].years || []));
     const card = (id, race) => {
       const c = C[id], turns = (c.corners || []).length || c.facts?.turns;
+      const top = sort === "name" ? [c.name, c.locality] : sort === "location" ? [c.locality, `${c.country}, ${c.name}`] : [c.locality, c.name];
       return `<a class="tcard" href="#/circuit/${id}">
         <div class="tmap">${outlineSvg(c, { thin: true })}${race ? `<span class="rnd">Round ${race.round}</span>` : ""}</div>
-        <div class="bd"><b>${esc(c.locality)}</b><span class="tiny muted clamp1">${esc(c.name)}</span>
+        <div class="bd"><b class="${sort === "name" ? "clamp2" : "clamp1"}">${esc(top[0])}</b><span class="tiny muted clamp1">${esc(top[1])}</span>
           <span class="facts"><span>${U.lapNum(lapKm(c))} ${U.lapUnit()}</span>${turns ? `<span>${esc(turns)} Turns</span>` : ""}${c.elevStats ? `<span>${U.hTxt(c.elevStats.max - c.elevStats.min)} Rise</span>` : ""}</span>
-          ${race ? `<span class="tiny ${race.results.length ? "muted" : "next"}">${shortDate(race.date)}${race.results.length ? `, ${esc(lastName(s, race.results[0].d))} Won` : ""}</span>` : `<span class="tiny muted">Raced ${c.years.join(", ")}</span>`}
+          ${race ? `<span class="tiny ${race.results.length ? "muted" : "next"}">${y} ${shortDate(race.date)}${race.results.length ? `, ${esc(lastName(s, race.results[0].d))} Won` : ""}</span>` : `<span class="tiny muted">Raced ${(c.years || []).join(", ") || "Not Yet"}</span>`}
         </div></a>`;
     };
+    const grid = ids => `<div class="cards tcards">${ids.map(id => card(id, onCal[id])).join("")}</div>`;
+    let body;
+    if (sort === "calendar") {
+      const others = Object.keys(C).filter(id => !onCal[id]).sort((a, b) => lastRaced(b) - lastRaced(a) || byName(a, b));
+      body = `<h2>${y} Calendar</h2>
+        <div class="cards tcards">${s.races.filter(r => C[r.circuit]).map(r => card(r.circuit, r)).join("")}</div>
+        ${others.length ? `<h2>Not on the ${y} Calendar</h2>${grid(others)}` : ""}`;
+    } else if (sort === "name") {
+      body = grid(Object.keys(C).sort(byName));
+    } else {
+      const ids = Object.keys(C).sort((a, b) => C[a].country.localeCompare(C[b].country) || C[a].locality.localeCompare(C[b].locality));
+      body = [...REGIONS.map(([r]) => r), "Elsewhere"].map(r => { const g = ids.filter(id => regionOf(C[id].country) === r); return g.length ? `<h2>${r}</h2>${grid(g)}` : ""; }).join("");
+    }
     const html = `
-      <div class="page-head"><h1>Circuits</h1></div>
-      <h2>${y} Calendar</h2>
-      <div class="cards tcards">${s.races.filter(r => C[r.circuit]).map(r => card(r.circuit, r)).join("")}</div>
-      ${others.length ? `<h2>Also Raced Since 2018</h2><div class="cards tcards">${others.map(id => card(id, null)).join("")}</div>` : ""}`;
-    return { html };
+      <div class="page-head"><h1>Circuits</h1><div class="controls">${seg("csort", [["calendar", "Calendar"], ["name", "Name"], ["location", "Location"]], sort, "Sort Circuits")}${await seasonPick(y, "cseason")}</div></div>
+      ${body}`;
+    return { html, mount(root) {
+      onSeg(root, "#csort", v => setQuery({ sort: v === "calendar" ? null : v }));
+      onChange(root, "#cseason", v => setQuery({ y: v }));
+    } };
   }
 
   async function circuitView(id, q) {
@@ -1917,6 +1947,167 @@
       return () => out.forEach(o => o.destroy());
     } };
   }
+
+  // ===================================================================
+  // SEARCH (Cmd/Ctrl+K or / anywhere, the Home button, or the phone app bar)
+  // ===================================================================
+  const fold = s => String(s ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const words = s => fold(s).split(/[^a-z0-9]+/).filter(Boolean);
+  const SEARCH_PAGES = {
+    home: "dashboard next race countdown", telemetry: "lap laps compare speed throttle brake", standings: "championship points table leaderboard",
+    races: "results calendar schedule grand prix", drivers: "grid", circuits: "tracks courses layouts", teams: "constructors", cars: "chassis", news: "headlines videos posts",
+  };
+  const TYPE_LABEL = { page: "Page", season: "Season", driver: "Driver", team: "Team", car: "Car", circuit: "Circuit", race: "Race", telemetry: "Telemetry", news: "News" };
+  const TYPE_GROUP = { page: "Pages", season: "Seasons", driver: "Drivers", team: "Teams", car: "Cars", circuit: "Circuits", race: "Races", telemetry: "Telemetry", news: "News" };
+  const TYPE_CAP = { driver: 6, race: 6, news: 5, telemetry: 3 };
+  let searchIndex = null;
+  function buildSearchIndex() {
+    return (searchIndex = searchIndex || (async () => {
+      const [seasons, C, tel, Md, arch] = await Promise.all([allSeasons(), circuitsData(), telIndex(), media(), newsArchive()]);
+      const L = Math.max(...seasons.map(s => s.year)), out = [];
+      const add = e => { e.tw = words(e.title); e.ex = " " + words(e.extra || "").join(" ") + " "; out.push(e); };
+      const span = ys => (ys.length > 1 ? `${ys[0]} to ${ys[ys.length - 1]}` : `${ys[0]}`);
+      SECTIONS.forEach(([id, l]) => add({ type: "page", title: l, sub: "Go to page", extra: SEARCH_PAGES[id], href: () => `#/${id}`, ic: icon(id), boost: 0.6 }));
+      seasons.forEach(s => [["standings", "Standings"], ["races", "Races"], ["drivers", "Drivers"], ["teams", "Teams"], ["cars", "Cars"]].forEach(([id, l]) =>
+        add({ type: "season", title: `${s.year} ${l}`, sub: `${s.year} season`, year: s.year, href: () => `#/${id}?y=${s.year}`, ic: icon(id), boost: 0.35 - (L - s.year) * 0.01 })));
+      // drivers and teams across every season, described by their latest one
+      const D = {}, T = {}, raceNames = {};
+      seasons.forEach(s => {
+        Object.entries(s.drivers).forEach(([id, d]) => { const o = (D[id] = D[id] || { years: [], teams: new Set() }); o.d = d; o.s = s; o.years.push(s.year); const c = teamOf(s, id); if (c) { o.c = c; o.teams.add(s.constructors[c]?.name || ""); } });
+        Object.entries(s.constructors).forEach(([id, c]) => { const o = (T[id] = T[id] || { years: [] }); o.c = c; o.years.push(s.year); });
+        s.races.forEach(r => { (raceNames[r.circuit] = raceNames[r.circuit] || new Set()).add(r.name); });
+      });
+      Object.entries(D).forEach(([id, o]) => add({ type: "driver", title: o.d.name, sub: `${o.s.constructors[o.c]?.name || ""}${o.c ? ", " : ""}${span(o.years)}`, color: teamColor(o.c),
+        extra: `${o.d.code} ${o.d.number || ""} ${o.d.nat || ""} ${[...o.teams].join(" ")}`, years: o.years, href: y => `#/driver/${id}?y=${y || o.years[o.years.length - 1]}`, ic: icon("drivers"), boost: 0.5 - (L - o.years[o.years.length - 1]) * 0.03 }));
+      Object.entries(T).forEach(([id, o]) => add({ type: "team", title: o.c.name, sub: span(o.years), color: teamColor(id), extra: `${o.c.nat || ""} ${id.replace(/_/g, " ")}`, years: o.years,
+        href: y => `#/team/${id}?y=${y || o.years[o.years.length - 1]}`, ic: icon("teams"), boost: 0.45 - (L - o.years[o.years.length - 1]) * 0.03 }));
+      seasons.forEach(s => Object.entries(s.constructors).forEach(([id, c]) => { const k = Md.cars?.[s.year]?.[id]; add({ type: "car", title: k?.name || `${c.name} ${s.year} Car`, sub: `${s.year}, ${c.name}`, color: teamColor(id),
+        extra: `${c.name} car`, years: [s.year], href: () => `#/car/${id}?y=${s.year}`, ic: icon("cars"), boost: 0.2 - (L - s.year) * 0.01 }); }));
+      Object.entries(C).forEach(([id, c]) => add({ type: "circuit", title: c.name, sub: `${c.locality}, ${c.country}`, extra: `${c.locality} ${c.country} ${[...(raceNames[id] || [])].join(" ")} track circuit`,
+        years: c.years || [], href: () => `#/circuit/${id}`, ic: c.x ? outlineSvg(c, { thin: true, pad: 0.12 }) : icon("circuits"), boost: 0.4 }));
+      seasons.forEach(s => s.races.forEach(r => { const w = r.results[0];
+        add({ type: "race", title: `${s.year} ${r.name}`, sub: `Round ${r.round}, ${shortDate(r.date)}${w ? `, won by ${s.drivers[w.d]?.name || ""}` : r.date >= new Date().toISOString().slice(0, 10) ? ", upcoming" : ""}`,
+          extra: `${r.circuitName} ${r.locality} ${r.country} ${w ? s.drivers[w.d]?.name || "" : ""}`, year: s.year, href: () => `#/races?y=${s.year}&r=${r.round}`, ic: icon("races"), boost: 0.3 - (L - s.year) * 0.02 }); }));
+      tel.forEach(t => add({ type: "telemetry", title: `${t.year} ${t.name} Telemetry`, sub: `Fastest laps, ${plural((t.drivers || []).length, "driver", "drivers")}`, extra: `lap laps ${C[t.circuit]?.locality || ""}`,
+        year: t.year, href: () => `#/telemetry?f=${t.file}`, ic: icon("telemetry"), boost: 0.1 - (L - t.year) * 0.02 }));
+      (arch?.items || []).forEach(n => { const age = (Date.now() - new Date(n.d)) / 864e5;
+        add({ type: "news", title: n.t, sub: `${n.s}, ${ago(n.d)}`, year: new Date(n.d).getFullYear(), url: okUrl(n.u), ic: icon(n.k === "video" ? "play" : "news"), boost: -1 - Math.min(1, age / 30) }); });
+      return out;
+    })().catch(e => { searchIndex = null; throw e; }));
+  }
+  function searchFor(index, query) {
+    const toks = words(query), yt = toks.find(t => YEAR.test(t)), text = toks.filter(t => t !== yt), whole = text.join(" ");
+    if (!toks.length) return [];
+    const hits = [];
+    for (const e of index) {
+      let y = null;
+      if (yt) { if (e.years?.includes(+yt)) y = +yt; else if (e.year !== +yt) continue; }
+      else if (e.type === "season") continue;
+      const news = e.type === "news";
+      let score = 0, ok = true;
+      for (const t of text) {
+        if (e.tw.includes(t)) score += 3;
+        else if (news && t.length < 4) { ok = false; break; } // headlines need a whole word or a longer start
+        else if (e.tw.some(w => w.startsWith(t))) score += 2;
+        else if (e.ex.includes(` ${t}`)) score += 1;
+        else if (t.length >= 3 && (e.tw.join(" ") + e.ex).includes(t)) score += 0.5;
+        else { ok = false; break; }
+      }
+      if (!ok) continue;
+      const tj = e.tw.join(" ");
+      if (news && score < text.length * 2) continue; // headlines match on their own words only
+      if (!news && whole && tj === whole) score += 5; else if (!news && whole && tj.startsWith(whole)) score += 2;
+      if (!text.length && e.type === "season") score += 1; // a bare year leads with that season's pages
+      hits.push({ e, y, score: score + e.boost });
+    }
+    hits.sort((a, b) => b.score - a.score);
+    const groups = new Map();
+    hits.forEach(h => { const g = groups.get(h.e.type) || []; if (g.length < (TYPE_CAP[h.e.type] || 5)) g.push(h); groups.set(h.e.type, g); });
+    return [...groups].map(([type, g]) => Object.assign(g, { label: TYPE_GROUP[type] }));
+  }
+  const RECENT_KEY = "outlap-recent-search";
+  const recentSearch = () => { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } };
+  function rememberSearch(h) {
+    const item = { title: h.e.title, sub: h.e.sub, type: h.e.type, href: h.e.href ? h.e.href(h.y) : null, url: h.e.url || null, color: h.e.color || null };
+    const list = [item, ...recentSearch().filter(x => x.title !== item.title || x.type !== item.type)].slice(0, 6);
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch { /* private mode */ }
+  }
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const searchKey = mac ? "⌘K" : "Ctrl K";
+  function openSearch() {
+    const dlg = $("#search");
+    if (dlg.open) { $("#sxq", dlg)?.select(); return; }
+    dlg.innerHTML = `<div class="sx">
+      <div class="sx-bar">${icon("search", 20)}<input id="sxq" type="search" placeholder="Drivers, teams, races, circuits, news" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
+        role="combobox" aria-expanded="true" aria-controls="sxl" aria-autocomplete="list" aria-label="Search"><button type="button" class="sx-close" aria-label="Close search"><kbd>Esc</kbd><span>Cancel</span></button></div>
+      <div class="sx-list" id="sxl" role="listbox" aria-label="Results"></div></div>`;
+    const input = $("#sxq", dlg), list = $("#sxl", dlg);
+    let flat = [], active = 0, index = null;
+    const mark = (title, q) => {
+      let h = esc(title);
+      words(q).forEach(t => { h = h.replace(new RegExp(`(^|[^\\p{L}\\p{N}<>/&])(${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "giu"), "$1<mark>$2</mark>"); });
+      return h;
+    };
+    const row = (h, i, q, typed) => {
+      const e = h.e, href = e.url || link(e.href(h.y).slice(2));
+      return `<a class="sx-row" role="option" id="sx-${i}" data-i="${i}" href="${esc(href)}"${e.url ? ' target="_blank" rel="noopener noreferrer"' : ""} aria-selected="${i === active}">
+        <span class="sx-ic${e.type === "circuit" ? " map" : ""}"${e.color ? ` style="--c:${e.color}"` : ""}>${e.ic}</span>
+        <span class="sx-tx"><b>${mark(e.title, q)}</b><span>${esc(e.sub)}</span></span>${typed ? `<span class="sx-type">${TYPE_LABEL[e.type]}</span>` : ""}</a>`;
+    };
+    const draw = () => {
+      const q = input.value.trim();
+      if (!index) { list.innerHTML = `<p class="sx-empty">Loading…</p>`; return; }
+      let groups;
+      if (q) groups = searchFor(index, q);
+      else {
+        const rec = recentSearch().map(r => ({ e: { ...r, ic: icon({ page: "home", season: "standings", driver: "drivers", team: "teams", car: "cars", circuit: "circuits", race: "races", telemetry: "telemetry", news: "news" }[r.type] || "home"), href: () => r.href }, y: null }));
+        groups = [Object.assign(rec, { label: "Recent" }), Object.assign(index.filter(e => e.type === "page").map(e => ({ e, y: null })), { label: "Go To" })].filter(g => g.length);
+      }
+      flat = groups.flat(); active = clamp(active, 0, Math.max(0, flat.length - 1));
+      let i = 0;
+      list.innerHTML = flat.length ? groups.map(g => `<div class="sx-group" role="group" aria-label="${g.label}"><p class="sx-h" aria-hidden="true">${g.label}</p>${g.map(h => row(h, i++, q, g.label === "Recent")).join("")}</div>`).join("")
+        : `<p class="sx-empty">No matches for “${esc(q)}”.</p>`;
+      input.setAttribute("aria-activedescendant", flat.length ? `sx-${active}` : "");
+    };
+    const setActive = (i, scroll) => {
+      active = clamp(i, 0, flat.length - 1);
+      $$(".sx-row", list).forEach(r => r.setAttribute("aria-selected", +r.dataset.i === active));
+      input.setAttribute("aria-activedescendant", `sx-${active}`);
+      if (scroll) $(`#sx-${active}`, list)?.scrollIntoView({ block: "nearest" });
+    };
+    const choose = (i, viaLink) => {
+      const h = flat[i]; if (!h) return;
+      rememberSearch(h); dlg.close();
+      if (h.e.url) { if (!viaLink && h.e.url !== "#") window.open(h.e.url, "_blank", "noopener"); }
+      else go(link(h.e.href(h.y).slice(2)));
+    };
+    input.oninput = () => { active = 0; draw(); list.scrollTop = 0; };
+    input.onkeydown = e => {
+      if (e.key === "ArrowDown") { e.preventDefault(); setActive(active + 1, true); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setActive(active - 1, true); }
+      else if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); choose(active); }
+      else if (e.key === "Escape") { e.preventDefault(); dlg.close(); } // a search field would otherwise only clear itself
+    };
+    list.onpointermove = e => { const r = e.target.closest(".sx-row"); if (r && +r.dataset.i !== active) setActive(+r.dataset.i); };
+    list.onclick = e => {
+      const r = e.target.closest(".sx-row"); if (!r || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      const ext = !!flat[+r.dataset.i]?.e.url; if (!ext) e.preventDefault(); // news opens through the link itself
+      choose(+r.dataset.i, ext);
+    };
+    $(".sx-close", dlg).onclick = () => dlg.close();
+    draw();
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+    input.focus();
+    buildSearchIndex().then(ix => { index = ix; if (dlg.open) draw(); }).catch(err => { list.innerHTML = `<p class="sx-empty">Search couldn't load: ${esc(err.message)}</p>`; });
+  }
+  document.addEventListener("keydown", e => {
+    const typing = e.target.closest?.("input, textarea, select, [contenteditable]");
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") { e.preventDefault(); const d = $("#search"); d.open && !typing ? d.close() : openSearch(); }
+    else if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey && !$("dialog[open]")) { e.preventDefault(); openSearch(); }
+  });
+  document.addEventListener("click", e => { if (e.target.closest("[data-open-search]")) { e.preventDefault(); openSearch(); } });
+  if (!$("#search")) document.body.append(Object.assign(document.createElement("dialog"), { id: "search" })); // an older cached index.html
+  $("#search").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
   // ===================================================================
   const VIEWS = { home: homeView, news: newsView, telemetry: telemetryView, standings: standingsView, races: racesView, drivers: driversView, driver: driverView, teams: teamsView, team: teamView,
