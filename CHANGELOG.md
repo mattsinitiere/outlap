@@ -45,6 +45,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- Race list on the Races page rebuilt so the next race is obvious: a season
+  progress bar, a Next Race shortcut with "Race Day", "Tomorrow" or "In 5 Days",
+  an Upcoming divider, the next round outlined in red, a small track layout on
+  every row and the winner with a team-colour tick on completed rounds. Opening an
+  upcoming round shows its weekend (countdown, session times, layout) and recent
+  winners there instead of "Not Raced Yet". On phones the list is a swipeable strip.
 - Clean web addresses: no more `#` in links. Pages live at readable paths like
   `/drivers/max-verstappen/2024`, `/races/2026/singapore-grand-prix`,
   `/teams/red-bull`, `/cars/2025/ferrari`, `/circuits/monza` and

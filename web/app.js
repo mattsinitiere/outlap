@@ -1159,8 +1159,23 @@
     const done = s.races.filter(r => r.results.length);
     const rnd = +(q.get("r") || findRace(s.races, q.get("rs") || "")?.round || (done.length ? done[done.length - 1].round : 1));
     const race = s.races.find(r => r.round === rnd) || s.races[0];
-    const tele = (await telIndex()).find(i => i.year === y && i.round === race.round);
+    const [tidx, C, T, prev] = await Promise.all([telIndex(), circuitsData(), trendsData(), season(y - 1).catch(() => null)]);
+    const tele = tidx.find(i => i.year === y && i.round === race.round);
     const fl = race.results.find(r => r.flr === 1);
+    // where the season stands: the next race is the first one without results
+    const next = s.races.find(r => !r.results.length);
+    const today = new Date(); today.setHours(12, 0, 0, 0);
+    const daysTo = r => Math.round((new Date(r.date + "T12:00:00") - today) / 864e5);
+    const soon = r => { const d = daysTo(r); return d < 0 ? "Results Pending" : d === 0 ? "Race Day" : d === 1 ? "Tomorrow" : d <= 3 ? "This Weekend" : d < 7 ? `In ${d} Days` : d < 14 ? "Next Week" : `In ${Math.round(d / 7)} Weeks`; };
+    const raceRow = r => {
+      const w = r.results[0], c = C[r.circuit], isNext = r === next;
+      return `<li${isNext ? ' class="is-next"' : ""}><button type="button" data-r="${r.round}" aria-current="${r.round === race.round}" class="${w ? "done" : "todo"}">
+        <span class="rnd">${r.round}</span><span class="rl-map" aria-hidden="true">${c?.x ? outlineSvg(c, { thin: true, pad: 0.1, color: "currentColor" }) : ""}</span>
+        <span class="rl"><b>${esc(r.name.replace(" Grand Prix", ""))}</b><span class="muted tiny">${esc(r.locality)}, ${shortDate(r.date)}</span></span>
+        ${w ? `<span class="rl-win" title="Won by ${esc(s.drivers[w.d].name)}"><i style="background:${teamColor(w.c)}"></i>${esc(s.drivers[w.d].code)}</span>`
+          : isNext ? `<span class="rl-next">${esc(soon(r))}</span>` : ""}</button></li>`;
+    };
+    const firstTodo = s.races.findIndex(r => !r.results.length);
     const pod = race.results.slice(0, 3);
     const raceNotes = [];
     if (race.results.length) {
@@ -1181,14 +1196,13 @@
     const html = `
       <div class="page-head"><div><h1>${y} Races</h1><p class="sub">${done.length} of ${s.races.length} Rounds Complete</p></div><div class="controls">${await seasonPick(y)}</div></div>
       <div class="split-main split-list">
-        <section class="card" style="padding:8px"><ul class="race-list">${s.races.map(r => {
-          const w = r.results[0];
-          return `<li><button type="button" data-r="${r.round}" aria-current="${r.round === race.round}"><span class="rnd">${r.round}</span>
-            <span class="rl"><b>${esc(r.name.replace(" Grand Prix", ""))}</b><span class="muted tiny">${esc(r.locality)}, ${shortDate(r.date)}</span></span>
-            <span class="tiny" style="font-weight:700">${w ? esc(s.drivers[w.d].code) : ""}</span></button></li>`; }).join("")}</ul></section>
+        <section class="card race-pick">
+          <div class="rl-prog" aria-hidden="true">${s.races.map(r => `<i class="${r.results.length ? "d" : r === next ? "n" : ""}"></i>`).join("")}</div>
+          ${next ? `<a class="rl-jump" href="#/races?y=${y}&r=${next.round}"><span>Next Race</span><b>${esc(next.name.replace(" Grand Prix", ""))}</b><em>${esc(soon(next))}</em></a>` : `<p class="rl-jump done"><span>Season Complete</span></p>`}
+          <ul class="race-list">${s.races.map((r, k) => (k === firstTodo && k > 0 ? `<li class="rl-div" aria-hidden="true"><span>Upcoming</span></li>` : "") + raceRow(r)).join("")}</ul></section>
         <div class="stack">
-          <div><h1 class="h-race">${esc(race.name)}</h1><p class="muted" style="margin-top:6px"><a class="link" style="color:var(--ink)" href="#/circuit/${race.circuit}">${esc(race.circuitName)}</a>, ${longDate(race.date)}</p></div>
           ${race.results.length ? `
+          <div><h1 class="h-race">${esc(race.name)}</h1><p class="muted" style="margin-top:6px"><a class="link" style="color:var(--ink)" href="#/circuit/${race.circuit}">${esc(race.circuitName)}</a>, ${longDate(race.date)}</p></div>
           <div class="podium">${order.map(r => { const c = teamColor(r.c), h = r.pos === 1 ? 210 : r.pos === 2 ? 182 : 162; return `<a href="#/driver/${r.d}?y=${y}" style="height:${h}px;background:${dark(c)}">
             ${portrait(photoUrls(r.d, s, true), s.drivers[r.d].name, "ht-card")}
             <span class="tx"><b>P${r.pos}</b><span>${esc(s.drivers[r.d].name)}</span></span></a>`; }).join("")}</div>
@@ -1208,7 +1222,10 @@
             <tbody>${race.results.map(r => { const g = r.grid ? r.grid - r.pos : null; return `<tr data-href="#/driver/${r.d}?y=${y}"><td class="pos">${r.pos}</td><td>${driverLink(r.d, s)}</td><td class="hide-sm">${teamLink(r.c, s, { size: 22 })}</td>
               <td class="r hide-sm">${r.grid || "Pit Lane"}</td><td class="r ${g > 0 ? "up" : g < 0 ? "down" : ""}">${g == null ? "" : g > 0 ? `+${g}` : g === 0 ? "–" : `−${-g}`}</td>
               <td class="muted small hide-sm">${esc(r.st)}</td><td class="r hide-sm ${r.flr === 1 ? "purple" : ""}">${fmtLap(r.fl)}</td><td class="r">${r.pts ? fmtPts(r.pts) : ""}</td></tr>`; }).join("")}</tbody></table></div></section>` :
-          `<div class="empty"><h3>Not Raced Yet</h3><p>Results appear after the Monday data refresh.</p></div>`}
+          `${weekendCard(race, { y, total: s.races.length, C, T, prev, isNext: race === next })}
+           ${(() => { const yrs = Object.keys(T[race.circuit]?.years || {}).filter(v => +v < y && T[race.circuit].years[v].winner).sort((a, b2) => b2 - a).slice(0, 5);
+             return yrs.length ? `<section class="card"><div class="card-head"><h2>Recent Winners Here</h2><a class="link small" href="#/circuit/${race.circuit}">Circuit Guide</a></div>
+               <div class="mini-facts">${yrs.map(v => `<div><span>${v}</span><b>${esc(T[race.circuit].years[v].winner)}</b></div>`).join("")}</div></section>` : ""; })()}`}
         </div>
       </div>`;
     return { html, canon: q.get("r") || q.get("rs") ? { r: race.round } : null, mount(root) {
@@ -1216,7 +1233,11 @@
       $$("[data-r]", root).forEach(b => (b.onclick = () => setQuery({ r: b.dataset.r })));
       const sl = $("#slope", root); if (sl) cleanups.push(mountSlope(sl, race, s).destroy);
       const cur = $('[data-r][aria-current="true"]', root), list = $(".race-list", root);
-      if (cur && list && (cur.offsetTop < list.scrollTop || cur.offsetTop > list.scrollTop + list.clientHeight - 60)) list.scrollTop = cur.offsetTop - list.clientHeight / 2;
+      if (cur && list) {
+        if (matchMedia("(max-width: 760px)").matches) list.scrollLeft = cur.parentElement.offsetLeft - list.clientWidth / 2 + cur.clientWidth / 2; // phone strip
+        else if (cur.offsetTop < list.scrollTop || cur.offsetTop > list.scrollTop + list.clientHeight - 60) list.scrollTop = cur.offsetTop - list.clientHeight / 2;
+      }
+      return mountCountdown(root);
     } };
   }
 
