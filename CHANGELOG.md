@@ -51,6 +51,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- Launch screen now shows every time the app opens: the OutLap wordmark rises in
+  and the three sector lines fill one after another, for at least a second and
+  never more than about three (if the page is still loading, its placeholders take over).
 - The browser-tab icon follows your light or dark mode: the three sector lines on
   a white tile in light mode, on the dark tile in dark mode.
 - Race list on the Races page rebuilt so the next race is obvious: a season
@@ -81,6 +84,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   breakdown, then a full-width car card.
 
 ### Fixed
+- On phones, tapping something no longer leaves it looking blank. Touch screens
+  keep the last tapped item in a "hover" state, and some hover styles overrode the
+  selected look, most visibly a selected track in the telemetry picker turning white
+  on near-white. Hover styles now only apply with a mouse, and never over a selected item.
+- Phone layout touch-ups: telemetry and circuit readouts stay on one line, round
+  labels on circuit cards no longer overlap the track, the circuit page title no
+  longer runs into the track outline, tracks without telemetry are easier to read,
+  the A/B badges stay readable on light team colours, and the Grid to Finish hint
+  says Tap on touch screens.
 - iPhone home-screen icon: it had transparent rounded corners, which iOS fills
   with black, leaving a dark fringe. It's now a full square that iOS rounds cleanly.
 
