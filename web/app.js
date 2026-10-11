@@ -1440,10 +1440,10 @@
                <div class="mini-facts">${yrs.map(v => `<div><span>${v}</span><b>${esc(T[race.circuit].years[v].winner)}</b></div>`).join("")}</div></section>` : ""; })()}`}
         </div>
       </div>`;
-    return { html, canon: q.get("r") || q.get("rs") ? { r: race.round } : null, mount(root, ctx) {
+    return { html, canon: { y: String(y), r: race.round }, mount(root, ctx) {
       onChange(root, "#season", v => setQuery({ y: v, r: null }));
       if (lc) { const ch = mountLapCard(root, R, race, s, lc, ctx.first); if (ch) cleanups.push(ch.destroy); }
-      $$("[data-r]", root).forEach(b => (b.onclick = () => setQuery({ r: b.dataset.r })));
+      $$("[data-r]", root).forEach(b => (b.onclick = () => setQuery({ y: String(y), r: b.dataset.r }))); // the address only names a race alongside its season
       const sl = $("#slope", root); if (sl) cleanups.push(mountSlope(sl, race, s).destroy);
       const cur = $('[data-r][aria-current="true"]', root), list = $(".race-list", root);
       if (cur && list) {
