@@ -69,6 +69,11 @@ def secs(s):
     return round(float(p[0]) * 60 + float(p[1]), 3) if len(p) == 2 else float(p[0])
 
 
+SESSIONS = [("FirstPractice", "Practice 1"), ("SecondPractice", "Practice 2"), ("ThirdPractice", "Practice 3"),
+            ("SprintQualifying", "Sprint Qualifying"), ("SprintShootout", "Sprint Shootout"), ("Sprint", "Sprint"),
+            ("Qualifying", "Qualifying")]
+
+
 def build_season(year):
     sched = get(f"{JOLPICA}/{year}.json")["MRData"]["RaceTable"]["Races"]
     results = jol_races(f"{year}/results", "Results")
@@ -80,6 +85,11 @@ def build_season(year):
                     circuit=c["circuitId"], circuitName=c["circuitName"],
                     locality=c["Location"]["locality"], country=c["Location"]["country"],
                     results=[], pole=None)
+        if r.get("time"):
+            race["time"] = r["time"]
+        sessions = [dict(n=label, d=r[k]["date"], t=r[k].get("time")) for k, label in SESSIONS if r.get(k, {}).get("date")]
+        if sessions:
+            race["sessions"] = sessions
         for x in results.get(r["round"], {}).get("Results", []):
             d, k = x["Driver"], x["Constructor"]
             code = d.get("code") or d["familyName"][:3].upper()
@@ -199,8 +209,9 @@ def openf1_race(season, session, race, want_telemetry, n_drivers):
 def write(name, data):
     path = os.path.join(OUT, name)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
+    with open(path + ".tmp", "w") as f:  # write then swap, so a killed run never leaves half a file
         json.dump(data, f, separators=(",", ":"))
+    os.replace(path + ".tmp", path)
 
 
 def load(name, default):
