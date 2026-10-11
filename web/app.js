@@ -1043,8 +1043,7 @@
           <section class="card">
             <div class="card-head"><h2>Through the Lap</h2>
               ${seg("chartMode", [["spd", "Speed"], ["thr", "Throttle & Brake"], ["gear", "Gear"], ["g", "G Force"]], chartMode, "Chart")}</div>
-            <div class="corner-labels">${corners.map((c, k) => { const l = (dist[c.i] / total) * 100, prev = k ? (dist[corners[k - 1].i] / total) * 100 : -99; return `<span style="left:${l}%;top:${l - prev < 8 && k % 2 === 1 ? 13 : 0}px">${esc(c.name)}</span>`; }).join("")}</div>
-            <div id="lapChart"></div>
+            ${turnRowHtml("lapTurns", "lapChart")}
             <p class="tiny muted" style="margin-top:6px">Shaded bands are braking zones.</p>
           </section>
           ${B ? `<section class="card"><div class="card-head"><h2>Gap Through the Lap</h2><span class="tiny muted">Above zero means ${esc(ln(b))} is behind</span></div><div id="gapChart"></div></section>` : ""}
@@ -1104,6 +1103,7 @@
         if (chartMode === "thr") { series = [{ name: `${ln(a)} Throttle`, color: colA, values: A.thr }, ...(B ? [{ name: `${ln(b)} Throttle`, color: colB, values: bv("thr"), dash: true }] : [])]; cfg = { yMin: 0, yMax: 100, yFmt: v => `${Math.round(v)}%`, tipRow: (s2, i) => `${s2.values[i]}%`, tipExtra: i => `<span class="d">Brake: ${esc(ln(a))} ${A.brk[i] ? "On" : "Off"}${B ? `, ${esc(ln(b))} ${B.brk[bMap[i]] ? "On" : "Off"}` : ""}</span>` }; }
         if (chartMode === "gear") { series = [{ name: ln(a), color: colA, values: A.gear, step: true }, ...(B ? [{ name: ln(b), color: colB, values: bv("gear"), dash: true, step: true }] : [])]; cfg = { yMin: 0.5, yMax: 8.5, tipRow: (s2, i) => `Gear ${s2.values[i]}`, tipExtra: i => `<span class="d">RPM ${A.rpm[i].toLocaleString()}${B ? ` / ${B.rpm[bMap[i]].toLocaleString()}` : ""}</span>` }; }
         if (chartMode === "g") { series = [{ name: ln(a), color: colA, values: A.gx }, ...(B ? [{ name: ln(b), color: colB, values: bv("gx"), dash: true }] : [])]; cfg = { zero: true, yFmt: v => v.toFixed(1), tipRow: (s2, i) => `${s2.values[i].toFixed(1)} G`, tipExtra: i => `<span class="d">Cornering ${Math.abs(A.gy[i]).toFixed(1)} G${B ? ` / ${Math.abs(B.gy[bMap[i]]).toFixed(1)} G` : ""}</span>` }; }
+        cleanups.push(mountTurnRow($("#lapTurns", root), corners.map(c => ({ frac: dist[c.i] / total, label: c.name, short: c.name.replace(/^Corner /, "C") }))));
         const ch = mountChart($("#lapChart", root), { xs: dist, series, height: 270, xFmt: U.axis, tipTitle: title, bands: brakeBands, onMove: i => setCursor(i, false), label: "Lap Chart", animate: ctx.first, ...cfg });
         cleanups.push(ch.destroy);
         const gch = B ? mountChart($("#gapChart", root), { xs: dist, series: [{ name: `${ln(b)} vs ${ln(a)}`, color: colB, values: gap, area: 0.1 }], height: 200, xFmt: U.axis, tipTitle: title, zero: true, yFmt: v => `${signed(v, 2)}s`, tipRow: (s2, i) => `${signed(s2.values[i], 2)}s`, onMove: i => setCursor(i, false, "gap"), label: "Gap Chart", animate: ctx.first }) : null;
@@ -1465,11 +1465,14 @@
     const names = [...new Set(hist.map(h => h.name))];
     const tot = hist.reduce((a, h) => ({ titles: a.titles + (h.pos === 1 && h.complete ? 1 : 0), wins: a.wins + h.wins, pods: a.pods + h.pods, poles: a.poles + h.poles, pts: a.pts + h.pts }), { titles: 0, wins: 0, pods: 0, poles: 0, pts: 0 });
     const cm = car(y, H.id);
+    const teamPhotos = (I.teams[H.id]?.photos || I.teams[c]?.photos || []).filter(p => src(p.img));
+    const heroPhoto = teamPhotos[0] || null;
+    const heroCredit = heroPhoto || cm;
     const html = `
       ${back(`#/teams?y=${y}`, "All Teams")}
       <div>
         <section class="p-hero" style="background:${dark(col)};min-height:320px">
-          ${cm ? `<div class="shot car">${imgTag([cm.img], cm.name || H.name, "", true)}</div>` : ""}
+          ${heroPhoto || cm ? `<div class="shot car${heroPhoto ? " team-shot" : ""}">${imgTag([heroPhoto?.img, cm?.img].filter(Boolean), heroPhoto ? H.name : cm.name || H.name, "", true)}</div>` : ""}
           <div class="txt">
             <span class="team">${logo(H.id, y, s, 40)}${esc(cm?.name ? `${cm.name}, ${y}` : String(y))}</span>
             <h1>${esc(H.name)}</h1>
@@ -1479,7 +1482,7 @@
         <div class="float-stats">
           <div>${count(tot.titles)}<span>Titles</span></div><div>${count(tot.wins)}<span>Wins</span></div><div>${count(tot.pods)}<span>Podiums</span></div><div>${count(tot.poles)}<span>Poles</span></div><div>${count(Math.round(tot.pts))}<span>Points</span></div>
         </div>
-        <p class="tiny muted center" style="margin-top:8px">Constructors' totals since 2018.${cm?.credit ? ` Car photo: ${esc(cm.credit)}${cm.license ? `, ${esc(cm.license)}` : ""}.` : ""}</p>
+        <p class="tiny muted center" style="margin-top:8px">Constructors' totals since 2018.${heroCredit?.credit ? ` Photo: ${esc(heroCredit.credit)}${heroCredit.license ? `, ${esc(heroCredit.license)}` : ""}.` : ""}</p>
       </div>
       <div class="grid-2">
         <section class="card"><h2 style="margin-bottom:6px">Team Profile</h2>
@@ -1495,13 +1498,16 @@
           <div class="driver-runs">${(() => { const m2 = {}; hist.forEach(h => h.drivers.forEach(d => { m2[d] = m2[d] || { s: h.s, ys: [] }; m2[d].ys.push(h.year); m2[d].s = h.s; })); return Object.entries(m2).sort((a, b) => b[1].ys[b[1].ys.length - 1] - a[1].ys[a[1].ys.length - 1] || b[1].ys.length - a[1].ys.length).map(([d, v]) => `<a href="#/driver/${d}?y=${v.ys[v.ys.length - 1]}"><b>${esc(v.s.drivers[d].name)}</b><span class="tiny muted">${v.ys.length > 1 ? `${v.ys[0]}–${v.ys[v.ys.length - 1]}` : v.ys[0]}, ${plural(v.ys.length, "Season", "Seasons")}</span></a>`).join(""); })()}</div>
         </section>
       </div>
+      <section class="card"><div class="card-head"><h2>Cars</h2><span class="tiny muted">Every car since 2018</span></div>
+        <div class="cards wide">${hist.slice().reverse().map(h => carCard(h.year, h.id, h.s, { year: true, sub: `${h.year}, ${h.name}, ${ordinal(h.pos)}` })).join("")}</div></section>
+      ${teamPhotos.length ? `<section class="card"><div class="card-head"><h2>Team Photos</h2><span class="tiny muted">Wikimedia Commons</span></div>
+        <div class="gallery">${teamPhotos.map(p => `<figure class="g-item"><a class="g-ph" href="${esc(p.page)}" target="_blank" rel="noopener">${imgTag([p.img], p.title || H.name)}</a><figcaption>${esc(p.credit)}${p.license ? `, ${esc(p.license)}` : ""}</figcaption></figure>`).join("")}</div></section>` : ""}
       <section class="card" id="inNews" hidden></section>
       <div class="grid-2">
         <section class="card"><h2 style="margin-bottom:8px">Championship Position</h2><div id="posChart"></div></section>
         <section class="card"><h2 style="margin-bottom:8px">Points by Season</h2><div id="ptsChart"></div></section>
       </div>
-      <section class="card"><h2 style="margin-bottom:12px">Every Car Since 2018</h2>
-        <div class="cards wide">${hist.slice().reverse().map(h => carCard(h.year, h.id, h.s, { year: true, sub: `${h.year}, ${h.name}, ${ordinal(h.pos)}` })).join("")}</div></section>
+
       <section class="card"><h2 style="margin-bottom:8px">Season by Season</h2><div class="table-wrap"><table>
         <thead><tr><th>Season</th><th class="hide-sm">Entered As</th><th>Drivers</th><th class="r">Pos</th><th class="r">Wins</th><th class="r hide-sm">Podiums</th><th class="r hide-sm">Poles</th><th class="r">Points</th></tr></thead>
         <tbody>${hist.slice().reverse().map(h => `<tr><td class="num pts">${h.year}</td><td class="hide-sm">${teamLink(h.id, h.s, { size: 22 })}</td>
@@ -1652,6 +1658,68 @@
     return { destroy: () => ro.disconnect() };
   }
 
+  // Turn labels above a lap chart: one row of pills, alternating dark and light, each with a tick down to its
+  // exact spot. Crowded pills slide sideways instead of stacking; if even the compact form can't fit, the chart
+  // widens and scrolls sideways. L and R must match the chart's plot padding (mountChart defaults).
+  function mountTurnRow(row, items, { L = 50, R = 12 } = {}) {
+    const inner = row.parentElement, scroller = inner.parentElement;
+    const list = items.slice().sort((a, b) => a.frac - b.frac);
+    const measure = document.createElement("canvas").getContext("2d");
+    const GAP = 3, PAD = 5, OVER = 14, H = 30;
+    const width = (txt, fs) => { measure.font = `700 ${fs}px "Public Sans", system-ui, sans-serif`; return Math.ceil(measure.measureText(txt).width) + PAD * 2; };
+    const FORMATS = [[it => it.label, 11], [it => it.short || it.label, 11], [it => it.short || it.label, 10]];
+    const fits = (ws, W) => ws.reduce((a, b) => a + b, 0) + GAP * (ws.length - 1) <= W - L - R + 2 * OVER;
+    function draw() {
+      const [fS, sS] = FORMATS[FORMATS.length - 1], small = list.map(it => width(fS(it), sS));
+      const need = small.reduce((a, b) => a + b, 0) + GAP * (small.length - 1) + L + R - 2 * OVER + 8;
+      const want = need > scroller.clientWidth ? `${Math.ceil(need)}px` : "";
+      if (inner.style.minWidth !== want) inner.style.minWidth = want;
+      const W = inner.clientWidth;
+      let fmt = FORMATS[FORMATS.length - 1], ws = small;
+      for (const [f, fs] of FORMATS) { const w2 = list.map(it => width(f(it), fs)); if (fits(w2, W)) { fmt = [f, fs]; ws = w2; break; } }
+      const xs = list.map(it => L + it.frac * (W - L - R));
+      const pos = []; let end = -Infinity;
+      list.forEach((_, i) => { pos[i] = Math.max(xs[i] - ws[i] / 2, end + GAP, L - OVER); end = pos[i] + ws[i]; });
+      let limit = W - R + OVER;
+      for (let i = list.length - 1; i >= 0; i--) { if (pos[i] + ws[i] > limit) pos[i] = limit - ws[i]; limit = pos[i] - GAP; }
+      row.innerHTML = `<svg width="${W}" height="${H}" aria-hidden="true">${list.map((it, i) => {
+        const dark = i % 2 === 0, cx = pos[i] + ws[i] / 2;
+        return `<line x1="${cx}" y1="19" x2="${xs[i]}" y2="${H}" stroke="#9AA0AC" stroke-width="1"/>
+          <rect x="${pos[i] + 0.5}" y="1.5" width="${ws[i] - 1}" height="17" rx="8.5" fill="${dark ? "#0F1218" : "#FFFFFF"}" stroke="#0F1218" stroke-width="1"/>
+          <text x="${cx}" y="13.6" text-anchor="middle" fill="${dark ? "#FFFFFF" : "#0F1218"}" style="font:700 ${fmt[1]}px 'Public Sans',system-ui,sans-serif">${esc(fmt[0](it))}</text>`;
+      }).join("")}</svg>`;
+    }
+    const ro = new ResizeObserver(() => draw()); ro.observe(scroller); draw();
+    return () => ro.disconnect();
+  }
+  const turnRowHtml = (id, chartId) => `<div class="turn-scroll"><div class="turn-inner"><div class="turn-row" id="${id}"></div><div id="${chartId}"></div></div></div>`;
+
+  // Turn numbers on a circuit map: start each bubble at its official offset, then nudge bubbles apart until none
+  // overlap each other or sit on the track, keeping each close to its corner (a leader line joins them).
+  function placeTurnBubbles(G, r, sw) {
+    const step = Math.max(1, Math.floor(G.pts.length / 260)), track = G.pts.filter((_, i) => i % step === 0);
+    const B = G.corners.map(k => ({ x: k.lx, y: k.ly, ax: k.px, ay: k.py }));
+    const ideal = Math.max(r * 2.2, G.span * 0.05), clear = r + sw * 1.45, minGap = r * 2.15;
+    const pad = G.span * 0.1, box = [G.minX - pad + r, G.maxX + pad - r, G.minY - pad + r, G.maxY + pad - r];
+    for (let it = 0; it < 240; it++) {
+      const k = it < 160 ? 1 : 0.5;
+      B.forEach(a => {
+        let dx = a.x - a.ax, dy = a.y - a.ay, d = Math.hypot(dx, dy) || 1e-6;
+        const f = (d - ideal) * 0.06 * k; a.x -= (dx / d) * f; a.y -= (dy / d) * f;
+        for (const p of track) {
+          dx = a.x - p[0]; dy = a.y - p[1]; d = Math.hypot(dx, dy);
+          if (d < clear) { if (d < 1e-6) { dx = 1; dy = 0; d = 1; } const m = (clear - d) * 0.5 * k; a.x += (dx / d) * m; a.y += (dy / d) * m; }
+        }
+      });
+      for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) {
+        const a = B[i], b = B[j]; let dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+        if (d < minGap) { if (d < 1e-6) { dx = 1; dy = 0; d = 1; } const m = (minGap - d) / 2; a.x -= (dx / d) * m; a.y -= (dy / d) * m; b.x += (dx / d) * m; b.y += (dy / d) * m; }
+      }
+      B.forEach(a => { a.x = clamp(a.x, box[0], box[1]); a.y = clamp(a.y, box[2], box[3]); });
+    }
+    return B;
+  }
+
   // ===================================================================
   // CIRCUITS
   // ===================================================================
@@ -1735,7 +1803,8 @@
       const start = `<line x1="${x0 + nx * sw * 1.8}" y1="${y0 + ny * sw * 1.8}" x2="${x0 - nx * sw * 1.8}" y2="${y0 - ny * sw * 1.8}" stroke="#E8002D" stroke-width="${sw * 0.7}"/>`;
       const [ax, ay] = P[8], ang2 = Math.atan2(P[10][1] - P[6][1], P[10][0] - P[6][0]);
       const arrow = `<path d="M${-sw * 1.4},${-sw * 1.1} L${sw * 1.2},0 L${-sw * 1.4},${sw * 1.1}" fill="none" stroke="#fff" stroke-width="${sw * 0.45}" stroke-linecap="round" stroke-linejoin="round" transform="translate(${ax} ${ay}) rotate(${(ang2 * 180) / Math.PI})"/>`;
-      const turnsSvg = G.corners.map(k => `<g class="turn"><line x1="${k.px}" y1="${k.py}" x2="${k.lx}" y2="${k.ly}" stroke="#9AA0AC" stroke-width="${sw * 0.18}"/><circle cx="${k.lx}" cy="${k.ly}" r="${sw * 1.35}" fill="#fff" stroke="#0F1218" stroke-width="${sw * 0.2}"/><text x="${k.lx}" y="${k.ly}" dy="0.35em" text-anchor="middle" style="font-size:${(sw * (k.label.length > 2 ? 1.05 : 1.3)).toFixed(0)}px">${esc(k.label)}</text></g>`).join("");
+      const R0 = sw * 1.35, spots = placeTurnBubbles(G, R0, sw);
+      const turnsSvg = G.corners.map((k, j) => { const p = spots[j]; return `<g class="turn"><line x1="${k.px}" y1="${k.py}" x2="${p.x}" y2="${p.y}" stroke="#9AA0AC" stroke-width="${sw * 0.18}"/><circle cx="${p.x}" cy="${p.y}" r="${R0}" fill="#fff" stroke="#0F1218" stroke-width="${sw * 0.2}"/><text x="${p.x}" y="${p.y}" dy="0.35em" text-anchor="middle" style="font-size:${(sw * (k.label.length > 2 ? 1.05 : 1.3)).toFixed(0)}px">${esc(k.label)}</text></g>`; }).join("");
       mapSvg = `<svg id="cmap" viewBox="${vb}" role="img" aria-label="${esc(c.name)} With Turn Numbers">
         <path d="${pathD}" fill="none" stroke="#EEF0F3" stroke-width="${sw * 2.6}" stroke-linejoin="round"/>
         <g fill="none" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${segs}</g>${start}${arrow}${turnsSvg}
@@ -1782,7 +1851,7 @@
         </div>
       </div>
       ${c.elev ? `<section class="card"><div class="card-head"><h2>Elevation Profile</h2><span class="tiny muted">From the start line, in ${imperial() ? "feet" : "metres"} above sea level</span></div>
-        <div class="corner-labels" id="eTurns"></div><div id="elevChart"></div></section>` : ""}
+        ${G && G.corners.length ? turnRowHtml("eTurns", "elevChart") : '<div id="elevChart"></div>'}</section>` : ""}
       ${photos.length || (c.officialMap && src(c.officialMap)) ? `<section class="card"><div class="card-head"><h2>Photos</h2></div>
         <div class="gallery">${c.officialMap && src(c.officialMap) ? `<figure class="g-item"><span class="g-ph" style="background:#fff">${imgTag([c.officialMap], "Official Circuit Map", 'style="object-fit:contain"')}</span><figcaption>Official circuit map, formula1.com</figcaption></figure>` : ""}
         ${photos.map(p => `<figure class="g-item"><a class="g-ph" href="${esc(p.page)}" target="_blank" rel="noopener">${imgTag([p.img], p.title || c.name)}</a><figcaption>${esc(p.credit)}${p.license ? `, ${esc(p.license)}` : ""}</figcaption></figure>`).join("")}</div></section>` : ""}
@@ -1834,7 +1903,7 @@
       const ec = $("#elevChart", root);
       if (ec && G) {
         const total = G.d[G.d.length - 1];
-        $("#eTurns", root).innerHTML = G.corners.map((k, j) => { const l = (G.d[k.i] / total) * 100, prev = j ? (G.d[G.corners[j - 1].i] / total) * 100 : -99; return `<span style="left:${l}%;top:${l - prev < 3.2 && j % 2 ? 13 : 0}px">T${esc(k.label)}</span>`; }).join("");
+        if (G.corners.length) out.push({ destroy: mountTurnRow($("#eTurns", root), G.corners.map(k => ({ frac: G.d[k.i] / total, label: `T${k.label}`, short: k.label }))) });
         elevChart = mountChart(ec, { xs: G.d, series: [{ name: "Elevation", color: "#0F1218", values: c.elev.map(U.h), area: 0.08, width: 2.4 }], height: 220, xFmt: U.axis, yFmt: v => `${Math.round(v)} ${U.hUnit()}`,
           tipTitle: i => `${U.at(G.d[i])}${nearTurn(i) ? `, Turn ${nearTurn(i).label}` : ""}`, tipRow: (s2, i) => `${Math.round(s2.values[i]).toLocaleString()} ${U.hUnit()}`, onMove: i => cursor(i, false), label: "Elevation Profile", animate: ctx.first });
         out.push(elevChart);
