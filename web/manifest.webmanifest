@@ -2,7 +2,7 @@
   "name": "OutLap",
   "short_name": "OutLap",
   "description": "Personal race analytics: lap telemetry, drivers, teams, cars, circuits and standings since 2018.",
-  "start_url": "/#/telemetry",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#F4F5F7",
   "theme_color": "#FFFFFF",
@@ -23,5 +23,6 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "scope": "/"
 }

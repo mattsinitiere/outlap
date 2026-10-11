@@ -16,9 +16,9 @@
     return p;
   }
   const meta = () => load("meta.json");
-  const season = y => load(`season_${y}.json`);
+  const season = y => load(`season_${y}.json`).then(s => (seasonSync[y] = s));
   const media = () => load("media.json").catch(() => ({ drivers: {}, cars: {}, logos: {} }));
-  const telIndex = () => load("telemetry/index.json").catch(() => []);
+  const telIndex = () => load("telemetry/index.json").catch(() => []).then(i => (telSync = i));
   const circuitsData = () => load("circuits.json").catch(() => ({}));
   const trendsData = () => load("trends.json").catch(() => ({}));
   const infoData = () => load("info.json").catch(() => ({ drivers: {}, teams: {}, cars: {} }));
@@ -386,16 +386,140 @@
   // ===================================================================
   // Routing and rendering
   // ===================================================================
-  function route() {
-    const raw = location.hash.replace(/^#\/?/, "") || "home";
-    const [path, qs] = raw.split("?");
+  // Views speak an internal route ("driver/max_verstappen?y=2026"); the address bar shows a clean path
+  // ("/drivers/max-verstappen/2026"). Templates write internal links as href="#/…" and render() rewrites them.
+  // The single-file preview (file://) keeps hash routing because it has no server to answer deep links.
+  const HASH = preview || location.protocol === "file:";
+  const slug = id => String(id).replace(/_/g, "-");
+  const unslug = s => String(s || "").toLowerCase().replace(/-/g, "_");
+  const nameSlug = n => String(n).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const YEAR = /^\d{4}$/;
+  const seasonSync = {}; // filled as seasons load, so links can name races
+  let telSync = null; // same for the telemetry index
+  const raceSlug = (y, round) => { const r = seasonSync[y]?.races.find(x => x.round === +round); return r ? nameSlug(r.name) : `round-${round}`; };
+  const findRace = (races, rs) => races.find(x => nameSlug(x.name) === rs) || races.find(x => `round-${x.round}` === rs);
+  const MAP_WORD = { faster: "faster", spd: "speed", thr: "throttle", brk: "brake", gear: "gear", gx: "braking-g", gy: "cornering-g" };
+  const CHART_WORD = { spd: "speed", thr: "throttle", gear: "gear", g: "g-force" };
+  const flip = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [v, k]));
+
+  function toPath(name, arg, q) {
+    const g = k => q.get(k), qs = new URLSearchParams();
+    const yr = g("y") && YEAR.test(g("y")) ? `/${g("y")}` : "";
+    let p = "/";
+    switch (name) {
+      case "home": if (g("nk")) qs.set("news", g("nk")); break;
+      case "telemetry": {
+        p = "/telemetry";
+        let y = g("ty"), rs = g("tr");
+        const f = g("f"), e = f && telSync?.find(i => i.file === f), m = f && f.match(/^(\d{4})_(\d+)/);
+        if (e) { y = e.year; rs = nameSlug(e.name); } else if (m) { y = m[1]; rs = `round-${+m[2]}`; }
+        if (y && rs) {
+          p += `/${y}/${rs}`;
+          const a = g("a"), b = g("b");
+          if (a) p += `/${a.toLowerCase()}${b === "none" ? "-solo" : b ? `-vs-${b.toLowerCase()}` : ""}`;
+        }
+        if (MAP_WORD[g("m")]) qs.set("map", MAP_WORD[g("m")]);
+        if (CHART_WORD[g("c")] && g("c") !== "spd") qs.set("chart", CHART_WORD[g("c")]);
+        break;
+      }
+      case "standings": p = `/standings${yr}${g("t") === "constructors" ? "/constructors" : ""}`; break;
+      case "races": p = `/races${yr}`; if (yr && (g("r") || g("rs"))) p += `/${g("r") ? raceSlug(g("y"), g("r")) : g("rs")}`; break;
+      case "drivers": p = `/drivers${yr}`; if (g("sort")) qs.set("sort", g("sort")); break;
+      case "driver": p = `/drivers/${slug(arg)}${yr}`; break;
+      case "teams": p = `/teams${yr}`; break;
+      case "team": p = `/teams/${slug(arg)}${yr}`; break;
+      case "cars": p = `/cars${yr}`; break;
+      case "car": p = `/cars${yr}/${slug(arg)}`; break;
+      case "circuits": p = "/circuits"; break;
+      case "circuit": p = `/circuits/${slug(arg)}`; if (g("m") === "elev") qs.set("view", "elevation"); break;
+      case "trends": p = g("c") ? `/circuits/${slug(g("c"))}` : "/circuits"; break;
+      case "news": p = "/news";
+        if (g("k")) qs.set("type", g("k")); if (g("d")) qs.set("driver", slug(g("d"))); if (g("t")) qs.set("team", slug(g("t"))); if (g("s")) qs.set("source", g("s"));
+        break;
+    }
+    const s = qs.toString();
+    return p + (s ? `?${s}` : "");
+  }
+  function fromPath(pathname, search) {
+    const seg = pathname.split("/").filter(Boolean).map(x => decodeURIComponent(x).toLowerCase());
+    const sp = new URLSearchParams(search), q = new URLSearchParams();
+    const set = (k, v) => { if (v != null && v !== "") q.set(k, v); };
+    const top = seg[0] || "home";
+    let name = top, arg = null;
+    switch (top) {
+      case "home": set("nk", sp.get("news")); break;
+      case "telemetry": {
+        set("ty", seg[1]); set("tr", seg[2]);
+        const m = (seg[3] || "").match(/^([a-z0-9]+)(?:-(solo)|-vs-([a-z0-9]+))?$/);
+        if (m) { set("a", m[1].toUpperCase()); set("b", m[2] ? "none" : m[3] ? m[3].toUpperCase() : null); }
+        set("m", flip(MAP_WORD)[sp.get("map")]); set("c", flip(CHART_WORD)[sp.get("chart")]);
+        break;
+      }
+      case "standings": seg.slice(1).forEach(x => { if (YEAR.test(x)) set("y", x); else if (x === "constructors") set("t", x); }); break;
+      case "races": set("y", seg[1]); set("rs", seg[2]); break;
+      case "drivers": case "teams":
+        if (seg[1] && !YEAR.test(seg[1])) { name = top === "drivers" ? "driver" : "team"; arg = unslug(seg[1]); set("y", seg[2]); }
+        else { set("y", seg[1]); set("sort", sp.get("sort")); }
+        break;
+      case "cars":
+        if (seg[2]) { name = "car"; arg = unslug(seg[2]); set("y", seg[1]); }
+        else if (seg[1] && !YEAR.test(seg[1])) { name = "car"; arg = unslug(seg[1]); }
+        else set("y", seg[1]);
+        break;
+      case "circuits": if (seg[1]) { name = "circuit"; arg = unslug(seg[1]); if (sp.get("view") === "elevation") set("m", "elev"); } break;
+      case "news": set("k", sp.get("type")); set("d", sp.get("driver") && unslug(sp.get("driver"))); set("t", sp.get("team") && unslug(sp.get("team"))); set("s", sp.get("source")); break;
+      default: name = "home";
+    }
+    if (q.get("y") && !YEAR.test(q.get("y"))) q.delete("y");
+    return { name: VIEWS[name] ? name : "home", arg, q };
+  }
+  function parseInternal(raw) {
+    const [path, qs] = (raw || "home").split("?");
     const [name, arg] = path.split("/");
     return { name: VIEWS[name] ? name : "home", arg: arg ? decodeURIComponent(arg) : null, q: new URLSearchParams(qs || "") };
   }
+  const internalHash = (name, arg, q) => `#/${name}${arg ? "/" + encodeURIComponent(arg) : ""}${[...q].length ? "?" + q : ""}`;
+  // internal "#/…" link -> what goes in the href
+  const link = raw => { if (HASH) return `#/${raw}`; const r = parseInternal(raw); return toPath(r.name, r.arg, r.q); };
+  const cleanLinks = html => (HASH ? html : html.replace(/(href|data-href)="#\/([^"]*)"/g, (_, at, raw) => `${at}="${esc(link(raw.replace(/&amp;/g, "&")))}"`));
+  function route() {
+    return HASH ? parseInternal(location.hash.replace(/^#\/?/, "")) : fromPath(location.pathname, location.search);
+  }
+  function go(url, replace) {
+    if (HASH) { location.hash = url; return; }
+    if (url === location.pathname + location.search) return;
+    history[replace ? "replaceState" : "pushState"](null, "", url);
+    render();
+  }
+  // Once a page knows exactly what it shows, tidy the address in place (round-5 -> its race name, unknown paths -> /)
+  function canonical(name, arg, q, canon) {
+    if (HASH) return;
+    const q2 = new URLSearchParams(q);
+    Object.entries(canon || {}).forEach(([k, v]) => { (ALIAS[k] || []).forEach(x => q2.delete(x)); q2.set(k, v); });
+    const u = toPath(name, arg, q2);
+    if (u !== location.pathname + location.search) history.replaceState(null, "", u);
+  }
+  // a key replaces its stand-ins: picking a round drops the race slug, picking a file drops year and track
+  const ALIAS = { r: ["rs"], f: ["ty", "tr"], y: ["rs"] };
   function setQuery(params) {
     const { name, arg, q } = route();
-    Object.entries(params).forEach(([k, v]) => (v == null || v === "" ? q.delete(k) : q.set(k, v)));
-    location.hash = `#/${name}${arg ? "/" + encodeURIComponent(arg) : ""}${[...q].length ? "?" + q : ""}`;
+    Object.entries(params).forEach(([k, v]) => { (ALIAS[k] || []).forEach(x => q.delete(x)); v == null || v === "" ? q.delete(k) : q.set(k, v); });
+    go(HASH ? internalHash(name, arg, q) : toPath(name, arg, q));
+  }
+  function bootRouter() {
+    $$('a[href^="#/"]').forEach(a => a.setAttribute("href", link(a.getAttribute("href").slice(2)))); // rail, tab bar, app bar
+    // old #/ bookmarks and home-screen shortcuts land on the clean address
+    if (!HASH && location.hash.startsWith("#/")) history.replaceState(null, "", link(location.hash.slice(2)));
+  }
+  if (!HASH) {
+    window.addEventListener("popstate", () => render());
+    document.addEventListener("click", e => {
+      const a = e.target.closest("a[href]");
+      if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute("download")) return;
+      const u = new URL(a.href, location.href);
+      if (u.origin !== location.origin || /^\/(data|brand|icons)\//.test(u.pathname) || /\.[a-z0-9]+$/i.test(u.pathname)) return;
+      e.preventDefault(); go(u.pathname + u.search);
+    });
   }
   const onChange = (root, sel, fn) => { const el = $(sel, root); if (el) el.onchange = e => fn(e.target.value); };
   const onSeg = (root, sel, fn) => $$(`${sel} button`, root).forEach(b => (b.onclick = e => { e.preventDefault(); fn(b.dataset.v); }));
@@ -468,14 +592,15 @@
     clearTimeout(skel);
     if (my !== token) return;
     cleanups.forEach(f => f()); cleanups = [];
-    const html = `<div class="page${pageChange ? " enter" : ""}" data-key="${esc(key)}">${out.html}</div>`;
+    const html = cleanLinks(`<div class="page${pageChange ? " enter" : ""}" data-key="${esc(key)}">${out.html}</div>`);
     const apply = () => {
       const cur = view.firstElementChild;
       if (pageChange || !cur || cur.classList.contains("skeleton")) view.innerHTML = html;
       else morph(cur, html);
       const root = view.firstElementChild;
-      $$("tr[data-href]", root).forEach(tr => { tr.classList.add("go"); tr.onclick = e => { if (!e.target.closest("a")) location.hash = tr.dataset.href; }; });
+      $$("tr[data-href]", root).forEach(tr => { tr.classList.add("go"); tr.onclick = e => { if (!e.target.closest("a")) go(tr.dataset.href); }; });
       if (out.mount) { const c = out.mount(root, { first: pageChange }); if (c) cleanups.push(c); }
+      canonical(name, arg, q, out.canon);
       $$("img", root).forEach(im => { if (im.complete && im.naturalWidth) im.classList.add("in"); });
       if (pageChange) { window.scrollTo(0, 0); countUp(root); }
     };
@@ -486,7 +611,7 @@
     else apply();
     progress.done();
   }
-  window.addEventListener("hashchange", render);
+  if (HASH) window.addEventListener("hashchange", render);
 
   // ===================================================================
   // NEWS (shared by Home, News and the driver and team pages)
@@ -522,8 +647,8 @@
     newsArchive().then(a => {
       const items = (a?.items || []).filter(match);
       if (!items.length || !el.isConnected) return;
-      el.innerHTML = `<div class="card-head"><h2>In the News</h2><a class="link small" href="${moreHref}">${items.length === 1 ? "1 Story" : `All ${items.length} Stories`}</a></div>
-        <div class="nw-list cols">${items.slice(0, 6).map(n => newsItem(n, s)).join("")}</div>`;
+      el.innerHTML = cleanLinks(`<div class="card-head"><h2>In the News</h2><a class="link small" href="${moreHref}">${items.length === 1 ? "1 Story" : `All ${items.length} Stories`}</a></div>
+        <div class="nw-list cols">${items.slice(0, 6).map(n => newsItem(n, s)).join("")}</div>`);
       el.hidden = false;
       $$("img", el).forEach(im => { if (im.complete && im.naturalWidth) im.classList.add("in"); });
     });
@@ -538,6 +663,53 @@
     const list = [...(r.sessions || []).map(x => ({ n: x.n, d: x.d, at: at(x.d, x.t) })), { n: "Race", d: r.date, at: at(r.date, r.time), race: true }];
     return list.sort((a, b) => (a.at && b.at ? a.at - b.at : a.d.localeCompare(b.d)));
   }
+  function mountCountdown(root) {
+    const cd = $("#countdown", root); if (!cd) return null;
+    const to = new Date(cd.dataset.to).getTime();
+    const tick = () => {
+      const ms = Math.max(0, to - Date.now()), m = Math.floor(ms / 60000);
+      const v = { d: Math.floor(m / 1440), h: Math.floor((m % 1440) / 60), m: m % 60 };
+      $$("[data-u]", cd).forEach(b => { b.textContent = String(v[b.dataset.u]).padStart(2, "0"); });
+      if (ms === 0) { clearInterval(t); render(); }
+    };
+    const t = setInterval(tick, 15000); tick();
+    return () => clearInterval(t);
+  }
+  // The race weekend card: countdown, sessions in local time, layout. Used on Home and for upcoming rounds on Races.
+  function weekendCard(r, { y, total, C, T, prev, isNext }) {
+    const now = Date.now();
+    const c = C[r.circuit] || {}, sess = weekend(r);
+    const upcoming = sess.find(x => x.at && x.at.getTime() > now);
+    const race = sess[sess.length - 1];
+    const live = sess.find(x => x.at && x.at.getTime() <= now && now < x.at.getTime() + (x.race ? 2.5 : 1.25) * 3600e3);
+    const target = upcoming?.at;
+    const lastWin = (() => {
+      const yrs = Object.keys(T[r.circuit]?.years || {}).map(Number).filter(v => v < y).sort((a, b) => b - a);
+      if (!yrs.length) return null;
+      const yy = yrs[0], code = T[r.circuit].years[yy].winner;
+      const pr = yy === y - 1 && prev ? prev.races.find(x => x.circuit === r.circuit && x.results.length) : null;
+      return { y: yy, name: pr ? prev.drivers[pr.results[0].d].name : code };
+    })();
+    const firstDay = new Date(sess[0].d + "T12:00:00"), raceDay = new Date(r.date + "T12:00:00");
+    const range = sess[0].d === r.date ? longDate(r.date) : `${firstDay.toLocaleDateString("en-US", { month: "short", day: "numeric" })} to ${raceDay.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    return `<section class="next-race">
+      <div class="nr-main">
+        <p class="nr-kicker">${live ? `<span class="live-dot"></span>${esc(live.n)} Live Now` : `${isNext ? "Next Race, " : ""}Round ${r.round} of ${total}`}</p>
+        <h2 class="nr-name">${esc(r.name)}</h2>
+        <p class="nr-where"><a href="#/circuit/${r.circuit}">${esc(r.circuitName)}</a>, ${esc(r.locality)}, ${esc(range)}</p>
+        ${target ? `<div class="cd" id="countdown" data-to="${target.toISOString()}" aria-label="Time until ${esc(upcoming.n)}">
+          <div><b data-u="d">–</b><span>Days</span></div><div><b data-u="h">–</b><span>Hours</span></div><div><b data-u="m">–</b><span>Minutes</span></div>
+          <p class="cd-what">Until ${esc(upcoming.n)}</p></div>` : live ? "" : `<p class="cd-what">${race.at ? "" : "Session times arrive with the next data refresh."}</p>`}
+        <ol class="sessions">${sess.map(x => {
+          const state = x.at ? (x === live ? "live" : x.at.getTime() < now ? "past" : x === upcoming ? "next" : "") : "";
+          const when = x.at ? `${fmtWhen(x.at, { weekday: "short" })} ${fmtWhen(x.at, { hour: "numeric", minute: "2-digit" })}` : new Date(x.d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+          return `<li class="${state}"><span>${esc(x.n)}</span><b>${esc(when)}</b></li>`; }).join("")}</ol>
+        ${sess.some(x => x.at) ? `<p class="nr-note">Times shown in your time zone.</p>` : ""}
+      </div>
+      <a class="nr-map" href="#/circuit/${r.circuit}" aria-label="${esc(r.circuitName)} Layout">${c.x ? outlineSvg(c, { color: "#FFFFFF", pad: 0.06 }) : ""}
+        <span class="nr-facts">${c.x ? `<span><b>${U.lapNum(lapKm(c))}</b> ${U.lapUnit()} Lap</span>` : ""}${(c.corners || []).length || c.facts?.turns ? `<span><b>${esc((c.corners || []).length || c.facts.turns)}</b> Turns</span>` : ""}${lastWin ? `<span>${lastWin.y} Winner <b>${esc(lastWin.name)}</b></span>` : ""}</span></a>
+    </section>`;
+  }
   async function homeView(_, q) {
     const y = await latestYear();
     const [s, C, T, news, prev] = await Promise.all([season(y), circuitsData(), trendsData(), newsLatest(), season(y - 1).catch(() => null)]);
@@ -549,37 +721,7 @@
     // next race
     let nextCard = "";
     if (next) {
-      const c = C[next.circuit] || {}, sess = weekend(next);
-      const upcoming = sess.find(x => x.at && x.at.getTime() > now);
-      const race = sess[sess.length - 1];
-      const live = sess.find(x => x.at && x.at.getTime() <= now && now < x.at.getTime() + (x.race ? 2.5 : 1.25) * 3600e3);
-      const target = upcoming?.at;
-      const lastWin = (() => {
-        const yrs = Object.keys(T[next.circuit]?.years || {}).map(Number).filter(v => v < y).sort((a, b) => b - a);
-        if (!yrs.length) return null;
-        const yy = yrs[0], code = T[next.circuit].years[yy].winner;
-        const pr = yy === y - 1 && prev ? prev.races.find(r => r.circuit === next.circuit && r.results.length) : null;
-        return { y: yy, name: pr ? prev.drivers[pr.results[0].d].name : code };
-      })();
-      const firstDay = new Date(sess[0].d + "T12:00:00"), raceDay = new Date(next.date + "T12:00:00");
-      const range = sess[0].d === next.date ? longDate(next.date) : `${firstDay.toLocaleDateString("en-US", { month: "short", day: "numeric" })} to ${raceDay.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-      nextCard = `<section class="next-race">
-        <div class="nr-main">
-          <p class="nr-kicker">${live ? `<span class="live-dot"></span>${esc(live.n)} Live Now` : `Next Race, Round ${next.round} of ${total}`}</p>
-          <h2 class="nr-name">${esc(next.name)}</h2>
-          <p class="nr-where"><a href="#/circuit/${next.circuit}">${esc(next.circuitName)}</a>, ${esc(next.locality)}, ${esc(range)}</p>
-          ${target ? `<div class="cd" id="countdown" data-to="${target.toISOString()}" aria-label="Time until ${esc(upcoming.n)}">
-            <div><b data-u="d">–</b><span>Days</span></div><div><b data-u="h">–</b><span>Hours</span></div><div><b data-u="m">–</b><span>Minutes</span></div>
-            <p class="cd-what">Until ${esc(upcoming.n)}</p></div>` : live ? "" : `<p class="cd-what">${race.at ? "" : "Session times arrive with the next data refresh."}</p>`}
-          <ol class="sessions">${sess.map(x => {
-            const state = x.at ? (x === live ? "live" : x.at.getTime() < now ? "past" : x === upcoming ? "next" : "") : "";
-            const when = x.at ? `${fmtWhen(x.at, { weekday: "short" })} ${fmtWhen(x.at, { hour: "numeric", minute: "2-digit" })}` : new Date(x.d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-            return `<li class="${state}"><span>${esc(x.n)}</span><b>${esc(when)}</b></li>`; }).join("")}</ol>
-          ${sess.some(x => x.at) ? `<p class="nr-note">Times shown in your time zone.</p>` : ""}
-        </div>
-        <a class="nr-map" href="#/circuit/${next.circuit}" aria-label="${esc(next.circuitName)} Layout">${c.x ? outlineSvg(c, { color: "#FFFFFF", pad: 0.06 }) : ""}
-          <span class="nr-facts">${c.x ? `<span><b>${U.lapNum(lapKm(c))}</b> ${U.lapUnit()} Lap</span>` : ""}${(c.corners || []).length || c.facts?.turns ? `<span><b>${esc((c.corners || []).length || c.facts.turns)}</b> Turns</span>` : ""}${lastWin ? `<span>${lastWin.y} Winner <b>${esc(lastWin.name)}</b></span>` : ""}</span></a>
-      </section>`;
+      nextCard = weekendCard(next, { y, total, C, T, prev, isNext: true });
     } else if (s.driverStandings[0]) {
       const ch = s.driverStandings[0];
       nextCard = `<section class="next-race done"><div class="nr-main"><p class="nr-kicker">${y} Season Complete</p><h2 class="nr-name">${esc(s.drivers[ch.d].name)}, World Champion</h2>
@@ -643,16 +785,7 @@
       ${newsCard}`;
     return { html, mount(root) {
       onSeg(root, "#newsKind", v => setQuery({ nk: v === "all" ? null : v }));
-      const cd = $("#countdown", root); if (!cd) return;
-      const to = new Date(cd.dataset.to).getTime();
-      const tick = () => {
-        const ms = Math.max(0, to - Date.now()), m = Math.floor(ms / 60000);
-        const v = { d: Math.floor(m / 1440), h: Math.floor((m % 1440) / 60), m: m % 60 };
-        $$("[data-u]", cd).forEach(b => { b.textContent = String(v[b.dataset.u]).padStart(2, "0"); });
-        if (ms === 0) render();
-      };
-      tick(); const t = setInterval(tick, 15000);
-      return () => clearInterval(t);
+      return mountCountdown(root);
     } };
   }
 
@@ -752,15 +885,16 @@
   async function telemetryView(_, q) {
     const [index, C] = await Promise.all([telIndex(), circuitsData()]);
     if (!index.length) return { html: `<div class="empty"><img class="empty-mark" src="brand/outlap-mark.svg" alt=""><h3>No Lap Telemetry Yet</h3><p>Run <code>python ingest/build_data.py</code> to download lap telemetry from OpenF1 (2023 onward) and <code>python ingest/backfill_fastf1.py</code> on your own computer for 2018 to 2022.</p></div>` };
-    const file = index.find(i => i.file === q.get("f")) ? q.get("f") : index[index.length - 1].file;
+    const bySlug = q.get("ty") && index.filter(i => i.year === +q.get("ty")).find(i => nameSlug(i.name) === q.get("tr") || `round-${i.round}` === q.get("tr"));
+    const file = index.find(i => i.file === q.get("f")) ? q.get("f") : bySlug ? bySlug.file : index[index.length - 1].file;
     const entry = index.find(i => i.file === file);
     const [tel, s] = await Promise.all([load(`telemetry/${file}`), season(entry.year)]);
     const idOf = code => Object.keys(s.drivers).find(k => s.drivers[k].code === code);
     const nm = code => { const id = idOf(code); return id ? s.drivers[id].name : code; };
     const ln = code => { const id = idOf(code); return id ? lastName(s, id) : code; };
     const codes = tel.drivers.map(d => d.code);
-    const a = codes.includes(q.get("a")) ? q.get("a") : codes[0];
-    const b = q.get("b") === "none" ? null : codes.includes(q.get("b")) ? q.get("b") : codes.find(c => c !== a) || null;
+    const a = codes.includes((q.get("a") || "").toUpperCase()) ? q.get("a").toUpperCase() : codes[0];
+    const b = q.get("b") === "none" ? null : codes.includes((q.get("b") || "").toUpperCase()) && q.get("b").toUpperCase() !== a ? q.get("b").toUpperCase() : codes.find(c => c !== a) || null;
     const A = tel.drivers.find(d => d.code === a), B = b ? tel.drivers.find(d => d.code === b) : null;
     const dA = idOf(a), dB = b ? idOf(b) : null;
     const cA = dA ? teamOf(s, dA) : null, cB = dB ? teamOf(s, dB) : null;
@@ -912,20 +1046,22 @@
 
     return {
       html,
+      canon: q.get("f") || q.get("ty") ? { f: file } : null,
       mount(root, ctx) {
         $$("[data-f]", root).forEach(el => (el.onclick = () => setQuery({ f: el.dataset.f, a: null, b: null })));
         onSeg(root, "#tpYear", v => { const last = index.filter(i => i.year === +v).pop(); if (last) setQuery({ f: last.file, a: null, b: null }); });
         const slots = $$(".tp-slot", root);
         slots.forEach(el => (el.onclick = () => { telSlot = el.dataset.slot; slots.forEach(x => x.setAttribute("aria-pressed", x === el)); }));
+        const pick2 = (na, nb) => setQuery({ f: file, a: na, b: nb });
         $$(".tp-chip", root).forEach(el => (el.onclick = () => {
           const code = el.dataset.code;
-          if (telSlot === "a") { telSlot = "b"; if (code !== a) setQuery({ a: code, b: code === b ? a : b || "none" }); else render(); }
-          else if (code === a) setQuery({ a: b || a, b: b ? a : "none" });
-          else setQuery({ b: code });
+          if (telSlot === "a") { telSlot = "b"; if (code !== a) pick2(code, code === b ? a : b || "none"); else render(); }
+          else if (code === a) pick2(b || a, b ? a : "none");
+          else pick2(a, code);
         }));
-        const sw = $("#tpSwap", root); if (sw) sw.onclick = () => B && setQuery({ a: b, b: a });
-        const mt = $("#tpMate", root); if (mt) mt.onclick = () => setQuery({ b: mt.dataset.code });
-        const so = $("#tpSolo", root); if (so) so.onclick = () => setQuery({ b: "none" });
+        const sw = $("#tpSwap", root); if (sw) sw.onclick = () => B && pick2(b, a);
+        const mt = $("#tpMate", root); if (mt) mt.onclick = () => pick2(a, mt.dataset.code);
+        const so = $("#tpSolo", root); if (so) so.onclick = () => pick2(a, "none");
         const all = $("#tpAll", root); if (all) all.onclick = () => { const on = $("#tpChips", root).classList.toggle("all"); all.textContent = on ? "Show Fewer" : `Show All ${ranked.length} Drivers`; };
         const strip = $("#tpTracks", root), cur = $(".tp-track.on", root);
         if (strip && cur && ctx.first) strip.scrollLeft = cur.offsetLeft - strip.clientWidth / 2 + cur.clientWidth / 2;
@@ -1021,7 +1157,7 @@
     const y = +(q.get("y") || await latestYear());
     const s = await season(y);
     const done = s.races.filter(r => r.results.length);
-    const rnd = +(q.get("r") || (done.length ? done[done.length - 1].round : 1));
+    const rnd = +(q.get("r") || findRace(s.races, q.get("rs") || "")?.round || (done.length ? done[done.length - 1].round : 1));
     const race = s.races.find(r => r.round === rnd) || s.races[0];
     const tele = (await telIndex()).find(i => i.year === y && i.round === race.round);
     const fl = race.results.find(r => r.flr === 1);
@@ -1075,7 +1211,7 @@
           `<div class="empty"><h3>Not Raced Yet</h3><p>Results appear after the Monday data refresh.</p></div>`}
         </div>
       </div>`;
-    return { html, mount(root) {
+    return { html, canon: q.get("r") || q.get("rs") ? { r: race.round } : null, mount(root) {
       onChange(root, "#season", v => setQuery({ y: v, r: null }));
       $$("[data-r]", root).forEach(b => (b.onclick = () => setQuery({ r: b.dataset.r })));
       const sl = $("#slope", root); if (sl) cleanups.push(mountSlope(sl, race, s).destroy);
@@ -1664,6 +1800,7 @@
   // ===================================================================
   const VIEWS = { home: homeView, news: newsView, telemetry: telemetryView, standings: standingsView, races: racesView, drivers: driversView, driver: driverView, teams: teamsView, team: teamView,
     circuits: circuitsView, circuit: circuitView, car: carView, trends: (a, q) => (q.get("c") ? circuitView(q.get("c"), q) : circuitsView(a, q)), cars: carsView };
+  bootRouter();
   render();
   if ("serviceWorker" in navigator && location.protocol === "https:" && !preview) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

@@ -68,6 +68,7 @@ images = {k: v for k, v in images.items() if v}
 print("embedded images:", len(images))
 
 icon = base64.b64encode(open(os.path.join(ROOT, "icons", "icon.svg"), "rb").read()).decode()
+html = html.replace('<base href="/">\n', "")  # the preview is a file:// page and keeps hash routing
 html = html.replace('<link rel="manifest" href="manifest.webmanifest">\n', "")
 html = html.replace('<link rel="apple-touch-icon" href="icons/icon-180.png">\n', "")
 html = html.replace('href="icons/icon.svg"', f'href="data:image/svg+xml;base64,{icon}"')
