@@ -172,6 +172,8 @@ and watching the console for errors. Playwright screenshots work well for this.
 - **Charts:** `mountChart` (lines, hover tooltip, `setCursor` for syncing; options include
   `yTicks`, `tipHtml(i)` for a custom tooltip, `marks` for dots, per-series `opacity`/`quiet`),
   `mountBars`, `mountSlope` (grid to finish). Draw at real container width; no chart library.
+- **Teams page:** `teamCard(y, cid, s, maxPts)` (logo on the team colour, standing, drivers, record).
+  Car photos belong on the Cars page and team profiles, not on the Teams list.
 - **Images:** always go through `imgTag(urls, alt)` (fallback chain via `data-alt`,
   fade-in on load) or `portrait(urls, alt, cls)` for halftone driver/circuit photos.
   `photoUrls(did, season)` resolves official headshot → Commons photo.
