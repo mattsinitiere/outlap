@@ -122,6 +122,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   breakdown, then a full-width car card.
 
 ### Fixed
+- A single slow answer from Jolpica no longer stops the whole data refresh; it waits and
+  retries. This is what left 2026 without session times and telemetry after the last run.
+- YouTube videos: when a channel's feed is refused, the refresh tries the same videos
+  through the channel's uploads playlist feed.
+- Teams with fewer than three photos (AlphaTauri, Cadillac) get another, broader search.
 - 2018 race pages no longer ask for a 2017 season file that doesn't exist.
 - Data refreshes no longer stop on one bad record. A single lap with missing
   timing data had ended the telemetry backfill partway through 2025, and one

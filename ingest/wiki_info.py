@@ -104,10 +104,11 @@ def main():
     # Team photos (garage, pit stops, the team at work) from Wikimedia Commons, once per team
     for cid, c in teams.items():
         entry = info["teams"].setdefault(cid, {})
-        if entry.get("photos") is not None and not force:
-            continue
+        if len(entry.get("photos") or []) >= 3 and not force:
+            continue  # teams with fewer than 3 photos are retried, with broader searches
         seen, photos = set(), []
-        for q in (f"{c['name']} Formula One team garage", f"{c['name']} Formula One pit stop", f"{c['name']} Formula One team"):
+        for q in (f"{c['name']} Formula One team garage", f"{c['name']} Formula One pit stop", f"{c['name']} Formula One team",
+                  f"Scuderia {c['name']}" if not c["name"].startswith("Scuderia") else f"{c['name']} F1", f"{c['name']} F1 car"):
             for ph in commons_photos(q, n=8, min_w=1000):
                 if ph["page"] not in seen:
                     seen.add(ph["page"]); photos.append(ph)

@@ -21,7 +21,7 @@ Standard library only, so the 3-hourly workflow can run it without installing an
   python ingest/news.py
 """
 import datetime as dt, email.utils, hashlib, html, json, os, re, sys, time, unicodedata
-import urllib.parse, urllib.request
+import urllib.error, urllib.parse, urllib.request
 import xml.etree.ElementTree as ET
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web", "data")
@@ -160,7 +160,10 @@ def youtube_feed(y, cache):
     base = "https://www.youtube.com/feeds/videos.xml?"
     cid = y.get("channel_id") or cache.get(handle)
     if cid:
-        return fetch(base + "channel_id=" + cid)
+        try:
+            return fetch(base + "channel_id=" + cid)
+        except urllib.error.HTTPError:  # some channel feeds 404 from cloud IPs; the uploads playlist feed is the same videos
+            return fetch(base + "playlist_id=UU" + cid[2:])
     try:
         raw = fetch(base + "user=" + urllib.parse.quote(handle.lstrip("@")))
         m = re.search(rb"<yt:channelId>(UC[\w-]{22})</yt:channelId>", raw)
