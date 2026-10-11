@@ -8,6 +8,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- Lap by Lap on every race page, beyond the fastest lap: Positions (every driver's
+  place on every lap, with pit stops and Safety Car periods), Pace (lap times for
+  the drivers you pick, with slow laps left out), Gaps (to the leader or to any
+  driver), Strategy (each driver's stints and tyres, plus a Stint Pace table with
+  average lap and estimated tyre wear per stint) and Consistency (how tightly each
+  driver's laps were grouped). The Telemetry page's head-to-head now ends with the
+  gap between the two drivers over the whole race.
+- Lap times, positions and pit stops cover 2018 onward; tyres, sector times and
+  official Safety Car periods cover 2023 onward. Before 2023, Safety Car laps are
+  estimated from the whole field slowing down and labelled that way, and stints come
+  from pit stops until the local FastF1 run adds tyre compounds.
+- The data refresh fetches all of this by itself. Filling in every race since 2018
+  takes several runs (about 12 hours) because of Jolpica's request limit; new races
+  are added after that.
 - Search everything from anywhere: press Cmd+K (Ctrl+K on Windows) or / on any
   page, use the Search button at the top right of Home, or tap the magnifier in
   the phone app bar. It finds drivers, teams, cars, circuits, every race since
@@ -104,6 +118,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   breakdown, then a full-width car card.
 
 ### Fixed
+- 2018 race pages no longer ask for a 2017 season file that doesn't exist.
 - Data refreshes no longer stop on one bad record. A single lap with missing
   timing data had ended the telemetry backfill partway through 2025, and one
   failed Wikipedia lookup stopped the car photo update; both are now skipped and
