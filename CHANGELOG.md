@@ -81,6 +81,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- Next race card: a bigger countdown with seconds, next to the session's local start time;
+  without session times it counts down to race day (and says when it's race day or the race
+  has finished). A row shows last year's winner, pole and fastest lap at the circuit, and the
+  layout panel adds race laps and first Grand Prix. This fills the card's empty space.
+- Podium finishes in the car and driver season results show as gold, silver and bronze P1, P2
+  and P3 badges instead of bold numbers; other finishes read P4, P5 and so on.
 - The Teams page shows the teams instead of their cars: each card has the team logo on
   its colour, championship position and points, the drivers with flags, the season's
   wins, podiums and poles, and a points bar. Car photos stay on the Cars page and each
