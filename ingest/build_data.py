@@ -201,6 +201,8 @@ def openf1_race(season, session, race, want_telemetry, n_drivers):
             raise
         except Exception as e:  # noqa: BLE001 - one bad lap shouldn't stop the season
             print(f"    {di.get('name_acronym')} skipped: {e}"); tr = None
+        if not tr:
+            print(f"    {di.get('name_acronym')}: OpenF1 returned too little car data for lap {lap['lap_number']}")
         if tr:
             traces.append(dict(code=di.get("name_acronym"), team=di.get("team_name"),
                                color="#" + (di.get("team_colour") or "8A97A8"),

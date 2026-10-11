@@ -175,13 +175,18 @@ FLAG_RULES = [  # (pattern, kind, opens?)
 
 def flag_periods(msgs, last_lap):
     """Race-control messages -> [[kind, firstLap, lastLap], ...]."""
-    out, open_ = [], {}
+    out, open_, last = [], {}, None
     for m in sorted(msgs, key=lambda m: m.get("date") or ""):
-        lap, text = m.get("lap_number"), (m.get("message") or "").upper()
+        lap, text = m.get("lap_number") or last, (m.get("message") or "").upper()  # some messages carry no lap: use the last one seen
         if not lap:
             continue
-        if m.get("flag") == "RED" and m.get("category") == "Flag":
-            out.append(["RED", lap, lap]); continue
+        last = lap
+        if (m.get("flag") == "RED" and m.get("category") == "Flag") or text.startswith("RED FLAG"):
+            if not out or out[-1][:2] != ["RED", lap]:
+                out.append(["RED", lap, lap])
+            out += [[k, v, lap] for k, v in open_.items()]  # a suspension ends any Safety Car period
+            open_.clear()
+            continue
         for pat, kind, opens in FLAG_RULES:
             if pat.match(text):
                 if opens:
@@ -193,7 +198,14 @@ def flag_periods(msgs, last_lap):
     return sorted(out, key=lambda x: x[1])
 
 
+OF1_VERSION = 2  # bump to refetch OpenF1 extras for files collected by an older parser
+
+
 def add_openf1(season, race, data):
+    for d in data["drivers"].values():  # start clean, so a refetch never doubles up stints
+        for k in ("st", "sec", "trap"):
+            d.pop(k, None)
+    data.pop("flags", None)
     s = openf1_session(season["year"], race)
     if not s:
         data["of1"] = "none"
@@ -231,6 +243,7 @@ def add_openf1(season, race, data):
         dd["trap"][n - 1] = lp.get("st_speed")
     data["flags"] = flag_periods(rc, data["laps"])
     data["of1"] = "ok"
+    data["of1v"] = OF1_VERSION
     if "OpenF1" not in data["src"]:
         data["src"].append("OpenF1")
 
@@ -316,7 +329,8 @@ def main():
             have = load(path)
             if have is None:
                 todo.append((season, race, path, None))
-            elif y >= OPENF1_FROM and (have.get("of1") is None or (a.refresh_openf1 and have.get("of1") != "ok")):
+            elif y >= OPENF1_FROM and (have.get("of1") is None or (have.get("of1") == "ok" and have.get("of1v", 1) < OF1_VERSION)
+                                       or (a.refresh_openf1 and have.get("of1") != "ok")):
                 todo.append((season, race, path, have))
     merged = merge_pending_extras()
     if merged:
@@ -333,7 +347,7 @@ def main():
                 data = base_file(season, race)
                 if not data:
                     continue
-            if season["year"] >= OPENF1_FROM and openf1_ok and data.get("of1") != "ok":
+            if season["year"] >= OPENF1_FROM and openf1_ok and (data.get("of1") != "ok" or data.get("of1v", 1) < OF1_VERSION):
                 try:
                     print(f"  {label}: tyres, sectors, race control")
                     add_openf1(season, race, data)

@@ -132,6 +132,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   breakdown, then a full-width car card.
 
 ### Fixed
+- Lap by Lap, found with the first real data: red flags are now recorded (race-control
+  messages without a lap number were being dropped, which also left a Safety Car "out" to the
+  end of the race); the Stint Pace table's Pit Stop column fills in (Jolpica logs the in-lap
+  while OpenF1 stints can end a lap earlier); and pit-lane time during a red-flag suspension
+  reads "Red Flag" instead of a 2,000-second stop. Races already collected get their tyres and
+  flags fetched again once, on the next refresh.
+- Car photos no longer vanish when a Wikipedia lookup fails during a refresh; last run's photo
+  is kept. The 2023 and 2024 Ferrari photos lost that way are back.
+- The data log now says when OpenF1 has too little car data for a lap (why Monaco 2026 has no
+  lap telemetry yet).
 - Letters with tails (g, p, y, j) are no longer cut off at the bottom of circuit card titles,
   driver card names, Home's at-a-glance names, big news headlines and the telemetry driver
   slots. The display font hangs below its tight line height, and truncated text was hiding it.
