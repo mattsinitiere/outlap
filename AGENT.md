@@ -136,13 +136,19 @@ and watching the console for errors. Playwright screenshots work well for this.
   Old `#/` links redirect. The file:// preview bundle keeps hash routing (`HASH`).
   Paths: `/` (home) `/telemetry/:year/:race/:a-vs-:b` `/standings/:year/constructors`
   `/races/:year/:race` `/drivers/:year` `/drivers/:id/:year` `/teams/:year` `/teams/:id/:year`
-  `/cars/:year` `/cars/:year/:team` `/circuits` `/circuits/:id` `/news?type=&driver=&team=&source=`.
+  `/cars/:year` `/cars/:year/:team` `/circuits/:year?sort=name|location` `/circuits/:id` `/news?type=&driver=&team=&source=`.
   Ids are slugs with `-` for `_`; race slugs come from the race name.
 - **Turn labels:** `mountTurnRow(row, items)` draws one row of turn pills above a lap chart
   (wrap the row and chart with `turnRowHtml(rowId, chartId)`; its L/R padding must match the
   chart's). `placeTurnBubbles(G, r, sw)` spreads circuit-map turn numbers so none overlap.
 - **Home and Races:** `weekendCard(race, …)` (countdown, sessions in local time, layout) is
   shared by Home and upcoming rounds on Races; `mountCountdown(root)` drives it.
+- **Search:** `openSearch()` opens the `#search` dialog (Cmd/Ctrl+K, `/`, or any element with
+  `data-open-search`). `buildSearchIndex()` builds one client-side index on first open from every
+  season, circuits, the telemetry index, media (car names) and the news archive; `searchFor()`
+  scores it (all words must match; a 4-digit word filters by year and picks that year's page) and
+  groups results by type. Recent picks live in `localStorage` key `outlap-recent-search`.
+  A new kind of page should add its entries in `buildSearchIndex()`.
 - **News:** `newsItem(n, season)` renders one story; `mountInNews` fills the driver/team
   cards after the page has drawn; `mountContract` fills the driver Contract and Pay card.
 - **Rendering:** `render()` shows a skeleton only if loading takes >120 ms, then either

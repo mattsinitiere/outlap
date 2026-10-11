@@ -1,5 +1,5 @@
 // App shell is cached for offline launch; data is network-first so new races show up.
-const SHELL = "outlap-shell-v8", DATA = "outlap-data-v8";
+const SHELL = "outlap-shell-v9", DATA = "outlap-data-v9";
 const FILES = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icons/favicon.svg", "brand/outlap-wordmark.svg", "brand/outlap-mark.svg"];
 self.addEventListener("install", e => e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener("activate", e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => ![SHELL, DATA].includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim())));
