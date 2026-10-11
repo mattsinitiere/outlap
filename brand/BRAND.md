@@ -9,6 +9,8 @@ ExtraBold Italic and converted to outlines (no font needed to display the SVGs).
 | `outlap-wordmark-white.svg` | Main logo on dark backgrounds |
 | `outlap-mark.svg` | The three sector slashes on their own (small spaces, loaders, favicons) |
 | `outlap-icon.svg`, `icon-512.png` | App icon (rounded dark tile) |
+| `outlap-icon-apple.svg` | iPhone home-screen icon source: the same dark tile as a full square, because iOS rounds icons itself and turns transparent corners black. Rendered to `web/icons/icon-180.png` |
+| `outlap-favicon.svg` | Browser-tab icon: white tile in light mode, dark tile in dark mode (copied to `web/icons/favicon.svg`) |
 | `outlap-icon-maskable.svg`, `icon-maskable-512.png` | Android adaptive icon (full-bleed, safe zone) |
 | `social-card.png` | Link previews (1200 × 630) |
 | `build_logo.py` | Regenerates the SVGs from the typeface (needs `fonttools` and the Barlow Condensed ExtraBold Italic TTF) |

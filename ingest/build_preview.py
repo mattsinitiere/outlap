@@ -67,11 +67,11 @@ for code in "us ar au at be br gb ca cn dk nl fi fr de in it jp mx mc nz pl ru e
 images = {k: v for k, v in images.items() if v}
 print("embedded images:", len(images))
 
-icon = base64.b64encode(open(os.path.join(ROOT, "icons", "icon.svg"), "rb").read()).decode()
+icon = base64.b64encode(open(os.path.join(ROOT, "icons", "favicon.svg"), "rb").read()).decode()
 html = html.replace('<base href="/">\n', "")  # the preview is a file:// page and keeps hash routing
 html = html.replace('<link rel="manifest" href="manifest.webmanifest">\n', "")
 html = html.replace('<link rel="apple-touch-icon" href="icons/icon-180.png">\n', "")
-html = html.replace('href="icons/icon.svg"', f'href="data:image/svg+xml;base64,{icon}"')
+html = html.replace('href="icons/favicon.svg"', f'href="data:image/svg+xml;base64,{icon}"')
 html = html.replace('<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">\n', "")
 html = html.replace('<meta property="og:image" content="icons/social-card.png">\n', "")
 html = html.replace('<link rel="stylesheet" href="styles.css">', "<style>\n" + open(os.path.join(ROOT, "styles.css")).read() + "\n</style>")

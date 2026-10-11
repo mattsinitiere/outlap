@@ -51,6 +51,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- The browser-tab icon follows your light or dark mode: the three sector lines on
+  a white tile in light mode, on the dark tile in dark mode.
 - Race list on the Races page rebuilt so the next race is obvious: a season
   progress bar, a Next Race shortcut with "Race Day", "Tomorrow" or "In 5 Days",
   an Upcoming divider, the next round outlined in red, a small track layout on
@@ -77,6 +79,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   create a commit and a Vercel deploy just for a new timestamp.
 - Driver profile layout: rating and points side by side, then profile and career
   breakdown, then a full-width car card.
+
+### Fixed
+- iPhone home-screen icon: it had transparent rounded corners, which iOS fills
+  with black, leaving a dark fringe. It's now a full square that iOS rounds cleanly.
 
 ## [0.7.0] - 2026-10-10
 
