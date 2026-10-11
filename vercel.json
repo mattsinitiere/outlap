@@ -15,7 +15,7 @@
   "rewrites": [
     {
       "source": "/((?!data/|brand/|icons/).*)",
-      "destination": "/index.html"
+      "destination": "/"
     }
   ]
 }
