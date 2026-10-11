@@ -49,7 +49,7 @@ web/
   data/               Generated JSON (never hand-edit; regenerate with ingest scripts)
 ingest/
   build_data.py       Jolpica (results, standings, schedule) + OpenF1 (telemetry, sectors, speed traps, headshots)
-  backfill_fastf1.py  2018–2022 telemetry via FastF1 (must run locally, see limitations)
+  backfill_fastf1.py  2018–2022 telemetry, tyre stints, sectors, race control via FastF1 (run locally; --push merges and pushes)
   telemetry.py        Lap resampling to 420 points + estimated g-forces
   media.py            Headshots, team logos, car photos, official car images, driver galleries → media.json
   circuits.py         Layouts, official turn numbers, elevation, facts, photos → circuits.json
@@ -73,7 +73,7 @@ ingest/
 | `meta.json` | Seasons available, generation time |
 | `season_YYYY.json` | Races (results, pole, fastest laps, `time` and `sessions` in UTC), drivers, constructors, standings, `openf1` headshots/colours |
 | `telemetry/index.json`, `telemetry/YYYY_RR.json` | Fastest race lap per driver: distance-aligned arrays `d x y spd thr brk gear rpm gx gy`, lap, sectors, headshot |
-| `laps/index.json`, `laps/YYYY_RR.json` | Per race: `laps` count, `drivers[id]` with `t` lap times (s), `p` positions, `pit` [[lap, pit-lane s]], and from 2023 `st` stints [[compound, firstLap, lastLap, ageAtStart]], `sec` [s1[], s2[], s3[]], `trap` speeds; `flags` [[SC/VSC/RED, firstLap, lastLap]]; `of1` ok/none once OpenF1 was tried. Index lists races with `tyres`/`flags` |
+| `laps/index.json`, `laps/YYYY_RR.json` | Per race: `laps` count, `drivers[id]` with `t` lap times (s), `p` positions, `pit` [[lap, pit-lane s]], and from 2023 `st` stints [[compound, firstLap, lastLap, ageAtStart]], `sec` [s1[], s2[], s3[]], `trap` speeds; `flags` [[SC/VSC/RED, firstLap, lastLap]]; `of1` ok/none once OpenF1 was tried, `ff1` ok once FastF1 extras were merged (2018–2022; extras waiting for their lap file sit in `laps/fastf1/` and `laps.py` merges them). Index lists races with `tyres`/`flags` |
 | `trends.json` | Per circuit per year: pole, fastest lap, winner, speed trap |
 | `media.json` | `drivers` (Commons photo, official headshot, gallery), `logos[cid][year]`, `cars[year][cid]` |
 | `circuits.json` | Outline `x/y` (decimetres, F1 frame), rotation, corners, elevation per point, facts, about, photos |
@@ -92,7 +92,7 @@ pip install -r ingest/requirements.txt
 python ingest/build_data.py                 # everything (resumable)
 python ingest/build_data.py --since 2026    # current season only
 python ingest/build_data.py --results-only  # skip OpenF1
-python ingest/backfill_fastf1.py            # 2018–2022 telemetry, local machine only
+python ingest/backfill_fastf1.py --push     # 2018–2022 telemetry + tyres/SC, local machine only; merges and pushes
 python ingest/media.py
 python ingest/circuits.py                   # --force to rebuild existing circuits
 python ingest/wiki_info.py                  # --force [--keep-drivers]

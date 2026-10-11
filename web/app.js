@@ -1213,7 +1213,12 @@
   const lapsIndex = () => load("laps/index.json").catch(() => ({}));
   const lapKey = (y, r) => `${y}_${String(r).padStart(2, "0")}`;
   async function lapsFor(y, r) { const idx = await lapsIndex(); return idx[lapKey(y, r)] ? load(`laps/${lapKey(y, r)}.json`).catch(() => null) : null; }
-  const TYRE = { SOFT: ["#E8002D", "S", "Soft"], MEDIUM: ["#F2C200", "M", "Medium"], HARD: ["#E4E7EC", "H", "Hard"], INTERMEDIATE: ["#2FA84F", "I", "Intermediate"], WET: ["#1F6FD1", "W", "Wet"], UNKNOWN: ["#9AA0AC", "?", "Unknown"] };
+  const TYRE = { SOFT: ["#E8002D", "S", "Soft"], MEDIUM: ["#F2C200", "M", "Medium"], HARD: ["#E4E7EC", "H", "Hard"], INTERMEDIATE: ["#2FA84F", "I", "Intermediate"], WET: ["#1F6FD1", "W", "Wet"], UNKNOWN: ["#9AA0AC", "?", "Unknown"],
+    // 2018 had seven named compounds, coloured differently from today's
+    HYPERSOFT: ["#F59BC1", "HS", "Hypersoft"], ULTRASOFT: ["#8A3FC7", "US", "Ultrasoft"], SUPERSOFT: ["#E8002D", "SS", "Supersoft"],
+    SOFT18: ["#F2C200", "S", "Soft"], MEDIUM18: ["#E4E7EC", "M", "Medium"], HARD18: ["#7CC8EE", "H", "Hard"], SUPERHARD: ["#F08A24", "SH", "Superhard"] };
+  const TYRE_ORDER = ["HYPERSOFT", "ULTRASOFT", "SUPERSOFT", "SOFT18", "SOFT", "MEDIUM18", "MEDIUM", "HARD18", "HARD", "SUPERHARD", "INTERMEDIATE", "WET", "UNKNOWN"];
+  const tyreKey = (c, year) => { const k = year === 2018 && ["SOFT", "MEDIUM", "HARD"].includes(c) ? `${c}18` : c; return TYRE[k] ? k : "UNKNOWN"; };
   const FLAG_BAND = { SC: ["#FFF1C7", "Safety Car"], VSC: ["#FFF8E3", "Virtual Safety Car"], RED: ["#FDE3E6", "Red Flag"], EST: ["#ECEEF2", "Slow Laps (Likely Safety Car)"] };
   const FUEL_PER_LAP = 0.06; // seconds a lap gets quicker as fuel burns off; a typical figure, used to estimate tyre wear
   const median = a => { const b = a.slice().sort((x, y) => x - y), m = b.length >> 1; return b.length ? (b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2) : null; };
@@ -1241,7 +1246,7 @@
       const why = v.t.map((t, i) => { const n = i + 1; return t == null ? "No Time" : n === 1 ? "Lap 1" : pits.has(n) ? "In Lap" : pits.has(n - 1) ? "Out Lap" : slow.has(n) ? (L.flags ? "Safety Car" : "Slow Lap") : slow.has(n - 1) ? "Restart" : null; });
       const med = median(v.t.filter((t, i) => t && !why[i]));
       v.t.forEach((t, i) => { if (!why[i] && med && t > med * 1.07) why[i] = "Off Pace"; });
-      const stints = v.st ? v.st.map(([c2, a, b, age]) => ({ tyre: TYRE[c2] ? c2 : "UNKNOWN", a, b, age }))
+      const stints = v.st ? v.st.map(([c2, a, b, age]) => ({ tyre: tyreKey(c2, L.year), a, b, age }))
         : [...v.pit.map(p => p[0]), v.t.length].reduce((acc, end) => { const a = acc.length ? acc[acc.length - 1].b + 1 : 1; if (end >= a) acc.push({ tyre: null, a, b: end, age: 0 }); return acc; }, []);
       stints.forEach(st2 => { st2.pit = v.pit.find(p => p[0] === st2.b) || null; });
       D[d] = { ...v, cum, why, clean: why.map(w => !w), stints, c: res?.c, grid: res?.grid, pos: res?.pos };
@@ -1280,7 +1285,7 @@
     if (tab === "tyres") {
       const N = R.N;
       const seg2 = (st, k) => { const w = ((st.b - st.a + 1) / N) * 100, t = st.tyre, lab = `${t ? TYRE[t][2] : `Stint ${k + 1}`}, laps ${st.a} to ${st.b}${st.pit?.[1] ? `, then ${st.pit[1].toFixed(1)}s in the pits` : ""}`;
-        return `<span class="st-seg${t ? "" : " plain"}${t === "HARD" ? " hard" : ""}" style="left:${((st.a - 1) / N) * 100}%;width:${w}%;${t ? `--t:${TYRE[t][0]};color:${textOn(TYRE[t][0])}` : ""}" title="${esc(lab)}">${w > 7 ? `${t ? TYRE[t][1] : ""}${w > 11 ? ` ${st.b - st.a + 1}` : ""}` : ""}</span>`; };
+        return `<span class="st-seg${t ? "" : " plain"}${t === "HARD" || t === "MEDIUM18" ? " hard" : ""}" style="left:${((st.a - 1) / N) * 100}%;width:${w}%;${t ? `--t:${TYRE[t][0]};color:${textOn(TYRE[t][0])}` : ""}" title="${esc(lab)}">${w > 7 ? `${t ? TYRE[t][1] : ""}${w > 11 ? ` ${st.b - st.a + 1}` : ""}` : ""}</span>`; };
       const flagRow = R.bands.length ? `<div class="st-row st-flags"><span class="lap-who muted">Flags</span><div class="st-bar">${R.bands.map(b => `<span class="st-seg flag" style="left:${((b.a - 1) / N) * 100}%;width:${((b.b - b.a + 1) / N) * 100}%;--t:${FLAG_BAND[b.kind][0]}" title="${FLAG_BAND[b.kind][1]}, laps ${b.a} to ${b.b}"></span>`).join("")}</div><span></span></div>` : "";
       const rows = R.order.map(d => { const x = R.D[d]; return `<div class="st-row${sel.includes(d) ? " on" : ""}">${tick(d)}<div class="st-bar">${x.stints.map(seg2).join("")}</div><span class="tiny muted">${plural(x.pit.length, "Stop", "Stops")}</span></div>`; }).join("");
       const stintRows = sel.flatMap(d => R.D[d].stints.map((st, k) => {
@@ -1289,9 +1294,9 @@
         const drop = pts.length >= 5 ? slope(pts) + FUEL_PER_LAP : null;
         return `<tr>${k === 0 ? `<td rowspan="${R.D[d].stints.length}">${tick(d)}</td>` : ""}<td>${st.tyre ? `${tyreChip(st.tyre, st.age)} ${TYRE[st.tyre][2]}` : `Stint ${k + 1}`}</td>
           <td class="r">${st.a}–${st.b}<span class="tiny muted hide-sm"> (${st.b - st.a + 1})</span></td><td class="r num">${avg ? fmtLap(avg) : "–"}</td>
-          <td class="r num ${drop > 0.12 ? "down" : ""}">${drop == null ? "–" : `${drop >= 0 ? "+" : "−"}${Math.abs(drop).toFixed(3)}s`}</td><td class="r hide-sm">${st.pit?.[1] ? `${st.pit[1].toFixed(1)}s` : ""}</td></tr>`; })).join("");
+          <td class="r num ${drop > 0.12 ? "down" : ""}">${drop == null ? "–" : `${Math.abs(drop) < 0.0005 ? "" : drop > 0 ? "+" : "−"}${Math.abs(drop).toFixed(3)}s`}</td><td class="r hide-sm">${st.pit?.[1] ? `${st.pit[1].toFixed(1)}s` : ""}</td></tr>`; })).join("");
       body = `<div class="strat">${flagRow}${rows}<div class="st-row st-axis"><span></span><div class="st-bar">${lapTicks(N).map(t => `<span style="left:${((t - 0.5) / N) * 100}%">${t}</span>`).join("")}</div><span></span></div></div>
-        ${R.tyres ? `<div class="legend lap-legend">${["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"].filter(t => R.order.some(d => R.D[d].stints.some(st => st.tyre === t))).map(t => `<span>${tyreChip(t)} ${TYRE[t][2]}</span>`).join("")}</div>`
+        ${R.tyres ? `<div class="legend lap-legend">${TYRE_ORDER.filter(t => R.order.some(d => R.D[d].stints.some(st => st.tyre === t))).map(t => `<span>${tyreChip(t)} ${TYRE[t][2]}</span>`).join("")}</div>`
           : `<p class="tiny muted">Tyre compounds for ${race.date.slice(0, 4)} arrive with the local FastF1 run; until then stints come from pit stops.</p>`}
         <h3 style="margin:16px 0 6px">Stint Pace</h3>
         <div class="table-wrap"><table class="stints"><thead><tr><th>Driver</th><th>Tyre</th><th class="r">Laps</th><th class="r">Avg Lap</th><th class="r">Drop / Lap</th><th class="r hide-sm">Pit Stop</th></tr></thead><tbody>${stintRows}</tbody></table></div>
@@ -1310,7 +1315,7 @@
     const head = `<div class="card-head"><h2>Lap by Lap</h2>${seg("lapTab", LAP_TABS, tab, "Lap by Lap View")}</div>
       ${tab === "gap" ? `<div class="lap-ref"><label class="tiny muted" for="lapRef">Gap To</label><select class="pick" id="lapRef"><option value="">Leader</option>${R.order.map(d => `<option value="${esc(code(d).toLowerCase())}"${d === ref ? " selected" : ""}>${esc(s.drivers[d]?.name || d)}</option>`).join("")}</select></div>` : ""}
       ${tab !== "cons" ? chips : ""}`;
-    return { html: `<section class="card lap-card" id="lapCard">${head}${body}<p class="tiny muted lap-src">Lap times and pit stops from Jolpica${L.src.includes("OpenF1") ? "; tyres and race control from OpenF1" : ""}.</p></section>`, tab, sel, ref, code };
+    return { html: `<section class="card lap-card" id="lapCard">${head}${body}<p class="tiny muted lap-src">Lap times and pit stops from Jolpica${L.src.includes("OpenF1") ? "; tyres and race control from OpenF1" : L.src.includes("FastF1") ? "; tyres and race control from F1's timing archive via FastF1" : ""}.</p></section>`, tab, sel, ref, code };
   }
   function mountLapCard(root, R, race, s, card, animate) {
     onSeg(root, "#lapTab", v => setQuery({ lt: v === "pos" ? null : v }));

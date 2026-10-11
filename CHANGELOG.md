@@ -19,6 +19,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   official Safety Car periods cover 2023 onward. Before 2023, Safety Car laps are
   estimated from the whole field slowing down and labelled that way, and stints come
   from pit stops until the local FastF1 run adds tyre compounds.
+- The local FastF1 run (`python ingest/backfill_fastf1.py`) now also collects 2018–2022
+  tyre compounds (including 2018's hypersoft to superhard), per-lap sector times and the
+  official Safety Car periods, so those seasons get the full Lap by Lap view. Add `--push`
+  and it merges with whatever the automatic refresh committed meanwhile, then pushes.
 - The data refresh fetches all of this by itself. Filling in every race since 2018
   takes several runs (about 12 hours) because of Jolpica's request limit; new races
   are added after that.
