@@ -1,0 +1,36 @@
+{
+  "_note": "News sources for ingest/news.py. Edit freely: a source that fails is logged and skipped. feeds = RSS/Atom news sites. google = Google News searches run for 'Formula 1' plus every current driver and team (set false to turn off). youtube = channel handles. bluesky = account handles (public API, no key). reddit = subreddits. 'team' tags every item from that source with a team id.",
+  "feeds": [
+    {"name": "Formula 1", "url": "https://www.formula1.com/en/latest/all.xml"},
+    {"name": "Autosport", "url": "https://www.autosport.com/rss/f1/news/"},
+    {"name": "Motorsport.com", "url": "https://www.motorsport.com/rss/f1/news/"},
+    {"name": "BBC Sport", "url": "https://feeds.bbci.co.uk/sport/formula1/rss.xml"},
+    {"name": "RaceFans", "url": "https://www.racefans.net/feed/"},
+    {"name": "The Race", "url": "https://www.the-race.com/feed/"},
+    {"name": "PlanetF1", "url": "https://www.planetf1.com/feed/"},
+    {"name": "Crash.net", "url": "https://www.crash.net/rss/f1"},
+    {"name": "Sky Sports", "url": "https://www.skysports.com/rss/12433"},
+    {"name": "ESPN", "url": "https://www.espn.com/espn/rss/f1/news"},
+    {"name": "GPblog", "url": "https://www.gpblog.com/en/rss/index.xml"},
+    {"name": "FIA", "url": "https://www.fia.com/rss/press-release"}
+  ],
+  "google": true,
+  "youtube": [
+    {"name": "Formula 1", "handle": "@Formula1"},
+    {"name": "Mercedes-AMG F1", "handle": "@MercedesAMGF1", "team": "mercedes"},
+    {"name": "Scuderia Ferrari", "handle": "@ScuderiaFerrari", "team": "ferrari"},
+    {"name": "Red Bull Racing", "handle": "@redbullracing", "team": "red_bull"},
+    {"name": "McLaren", "handle": "@McLaren", "team": "mclaren"},
+    {"name": "Aston Martin F1", "handle": "@AstonMartinF1", "team": "aston_martin"},
+    {"name": "Alpine F1 Team", "handle": "@AlpineF1Team", "team": "alpine"},
+    {"name": "Williams Racing", "handle": "@WilliamsRacing", "team": "williams"},
+    {"name": "Racing Bulls", "handle": "@visacashapprb", "team": "rb"},
+    {"name": "Haas F1 Team", "handle": "@HaasF1Team", "team": "haas"},
+    {"name": "Audi F1", "handle": "@AudiF1Team", "team": "audi"},
+    {"name": "Cadillac F1", "handle": "@CadillacF1", "team": "cadillac"}
+  ],
+  "bluesky": [],
+  "reddit": [
+    {"name": "r/formula1", "sub": "formula1"}
+  ]
+}

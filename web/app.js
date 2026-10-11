@@ -331,24 +331,28 @@
   const ICON = {
     telemetry: '<path d="M4 17c3 0 4-10 8-10s5 10 8 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     standings: '<path d="M5 20V11M12 20V5M19 20v-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
-    races: '<rect x="4" y="5" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="2"/>',
-    drivers: '<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    races: '<path d="M7 4h10v5a5 5 0 0 1-10 0z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 6H4.5v1.2a3.3 3.3 0 0 0 3 3.3M17 6h2.5v1.2a3.3 3.3 0 0 1-3 3.3M12 14v3.5M8 20.5h8M9.5 17.5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    drivers: '<path d="M12 2.8c-3 0-5 2.2-5 5.1v3.4c0 1.2 1 2.2 2.2 2.2h5.6c1.2 0 2.2-1 2.2-2.2V7.9c0-2.9-2-5.1-5-5.1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 7.3h6.8v2.4H8.6z" fill="currentColor"/><path d="M4 21c1.2-3.2 4.2-4.8 8-4.8s6.8 1.6 8 4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
     circuits: '<path d="M7.5 20.5C5 20.5 3.5 18.8 3.5 16.7c0-1.8 1.2-3.1 2.9-3.5l6.1-1.3c1.4-.3 2.2-1.2 2.2-2.4 0-1.3-1-2.3-2.4-2.3H9.6c-1 0-1.8-.8-1.8-1.8S8.6 3.5 9.6 3.5h7.6c2.3 0 3.3 1.7 3.3 3.9v9.2c0 2.2-1.8 3.9-4 3.9z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M11 18.2v4.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
-    teams: '<path d="M4 20h16M6 20V9l6-4 6 4v11M10 20v-5h4v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
-    cars: '<path d="M12 2.6c.9 0 1.5.7 1.5 1.7v3l1.7 1.5v5.3l1.3 1.5v2.9c0 1.4-1.1 2.5-2.5 2.5h-4c-1.4 0-2.5-1.1-2.5-2.5v-2.9l1.3-1.5V8.8l1.7-1.5v-3c0-1 .6-1.7 1.5-1.7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 4.6h10M6.5 21.4h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="3.9" y="6.4" width="2.6" height="4.4" rx=".9" fill="currentColor"/><rect x="17.5" y="6.4" width="2.6" height="4.4" rx=".9" fill="currentColor"/><rect x="3.7" y="14.4" width="2.8" height="4.8" rx=".9" fill="currentColor"/><rect x="17.5" y="14.4" width="2.8" height="4.8" rx=".9" fill="currentColor"/>',
+    teams: '<path d="M3 20V9.5L12 4l9 5.5V20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 20v-8h11v8M6.5 15h11M6.5 17.6h11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/>',
+    cars: '<path d="M5 5.5h14M5 5.5V9M19 5.5V9M8.6 14c.7-3 1.9-4.4 3.4-4.4s2.7 1.4 3.4 4.4M6.5 15.2h11M3.5 20h17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="12" cy="12.6" r="1.3" fill="currentColor"/><rect x="2.5" y="10" width="4" height="8" rx="1.3" fill="currentColor"/><rect x="17.5" y="10" width="4" height="8" rx="1.3" fill="currentColor"/>',
+    home: '<path d="M3.5 17.5a8.5 8.5 0 1 1 17 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 17.5l4.2-5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="17.5" r="1.6" fill="currentColor"/><path d="M6.6 11.3l1.2 1M12 8.3v1.6M17.4 11.3l-1.2 1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/>',
+    news: '<path d="M4 5.5h12v13a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 9h3.5v9.5a2 2 0 0 1-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 9h5M7.5 12.5h5M7.5 16h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/>',
     more: '<circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/>',
     settings: '<circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     back: '<path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   };
-  const SECTIONS = [["telemetry", "Telemetry"], ["standings", "Standings"], ["races", "Races"], ["drivers", "Drivers"], ["circuits", "Circuits"], ["teams", "Teams"], ["cars", "Cars"]];
+  const SECTIONS = [["home", "Home"], ["telemetry", "Telemetry"], ["standings", "Standings"], ["races", "Races"], ["drivers", "Drivers"], ["circuits", "Circuits"], ["teams", "Teams"], ["cars", "Cars"], ["news", "News"]];
+  const TABS = ["home", "telemetry", "standings", "drivers"];
+  const MORE = SECTIONS.filter(([id]) => !TABS.includes(id));
   const SECTION_OF = { driver: "drivers", team: "teams", circuit: "circuits", trends: "circuits", car: "cars" };
   const icon = (k, size) => `<svg viewBox="0 0 24 24" aria-hidden="true"${size ? ` width="${size}" height="${size}"` : ""}>${ICON[k]}</svg>`;
-  $("#rail").innerHTML = `<a href="#/telemetry" class="home" aria-label="OutLap home" title="OutLap"><img src="brand/outlap-mark.svg" alt="OutLap"></a>` +
+  $("#rail").innerHTML = `<a href="#/home" class="home" aria-label="OutLap home" title="OutLap"><img src="brand/outlap-mark.svg" alt="OutLap"></a>` +
     SECTIONS.map(([id, l]) => `<a href="#/${id}" data-id="${id}">${icon(id)}<span>${l}</span></a>`).join("") +
     `<button type="button" class="rail-settings" data-open-settings aria-label="Settings">${icon("settings")}<span>Settings</span></button>`;
-  $("#tabbar").innerHTML = SECTIONS.slice(0, 4).map(([id, l]) => `<a href="#/${id}" data-id="${id}">${icon(id)}<span>${l}</span></a>`).join("") +
+  $("#tabbar").innerHTML = SECTIONS.filter(([id]) => TABS.includes(id)).map(([id, l]) => `<a href="#/${id}" data-id="${id}">${icon(id)}<span>${l}</span></a>`).join("") +
     `<button type="button" id="moreBtn" aria-haspopup="menu" aria-expanded="false" data-id="more">${icon("more")}<span>More</span></button>`;
-  $("#more").innerHTML = SECTIONS.slice(4).map(([id, l]) => `<a href="#/${id}" role="menuitem">${icon(id, 20)}${l}</a>`).join("");
+  $("#more").innerHTML = MORE.map(([id, l]) => `<a href="#/${id}" role="menuitem">${icon(id, 20)}${l}</a>`).join("");
   const closeMore = () => { $("#more").removeAttribute("open"); $("#moreBtn").setAttribute("aria-expanded", "false"); };
   $("#moreBtn").onclick = e => { e.stopPropagation(); const m = $("#more"), open = !m.hasAttribute("open"); m.toggleAttribute("open", open); $("#moreBtn").setAttribute("aria-expanded", open); };
   document.addEventListener("click", e => { if (!e.target.closest("#more")) closeMore(); });
@@ -382,10 +386,10 @@
   // Routing and rendering
   // ===================================================================
   function route() {
-    const raw = location.hash.replace(/^#\/?/, "") || "telemetry";
+    const raw = location.hash.replace(/^#\/?/, "") || "home";
     const [path, qs] = raw.split("?");
     const [name, arg] = path.split("/");
-    return { name: VIEWS[name] ? name : "telemetry", arg: arg ? decodeURIComponent(arg) : null, q: new URLSearchParams(qs || "") };
+    return { name: VIEWS[name] ? name : "home", arg: arg ? decodeURIComponent(arg) : null, q: new URLSearchParams(qs || "") };
   }
   function setQuery(params) {
     const { name, arg, q } = route();
@@ -448,7 +452,7 @@
     const { name, arg, q } = route();
     const key = `${name}/${arg || ""}`, pageChange = key !== lastKey;
     const sec = SECTION_OF[name] || name;
-    $$("#rail a[data-id], #tabbar [data-id]").forEach(a => (a.dataset.id === sec || (a.dataset.id === "more" && ["circuits", "teams", "cars"].includes(sec)) ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+    $$("#rail a[data-id], #tabbar [data-id]").forEach(a => (a.dataset.id === sec || (a.dataset.id === "more" && MORE.some(([id]) => id === sec)) ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
     const view = $("#view");
     progress.start();
     const skel = setTimeout(() => { if (my === token && pageChange) { view.innerHTML = `<div class="page skeleton" aria-busy="true">${skeletonFor(name)}</div>`; } }, pageChange ? 120 : 400);

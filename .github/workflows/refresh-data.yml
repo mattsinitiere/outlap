@@ -1,6 +1,6 @@
 name: Refresh race data
 
-# Two schedules, one job:
+# Two schedules, one job (news, videos and social posts refresh on every run):
 #  - Every 3 hours, a quick check (ingest/check_new.py) compares this season's data
 #    with Jolpica and looks for recent races missing OpenF1 telemetry. Only if
 #    something is new does it rebuild the current season. Most runs stop after the check.
@@ -75,17 +75,24 @@ jobs:
         timeout-minutes: 20
         continue-on-error: true
         run: python -u ingest/wiki_info.py
+      - name: News, videos and social posts
+        if: always()
+        timeout-minutes: 15
+        continue-on-error: true
+        run: python -u ingest/news.py
       - name: Commit data
-        if: always() && steps.plan.outputs.run != 'none'
+        if: always()
         run: |
           # meta.json gets a fresh timestamp on every run; keep it only alongside real changes
-          if [ -z "$(git status --porcelain web/data | grep -v 'web/data/meta.json$')" ]; then
+          changed=$(git status --porcelain web/data | grep -v 'web/data/meta.json$' || true)
+          if [ -z "$changed" ]; then
             git checkout -- web/data/meta.json 2>/dev/null || true
             echo "No data changes."; exit 0
           fi
           git config user.name "outlap-bot"
           git config user.email "outlap-bot@users.noreply.github.com"
           git add web/data
-          git commit -m "Data refresh $(date -u +%F)"
+          if echo "$changed" | grep -qv 'web/data/news'; then msg="Data refresh"; else msg="News refresh"; fi
+          git commit -m "$msg $(date -u '+%F %H:%M') UTC"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
