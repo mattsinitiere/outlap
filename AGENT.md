@@ -168,6 +168,8 @@ and watching the console for errors. Playwright screenshots work well for this.
   Barlow Condensed ExtraBold Italic, outlined. Rules are in `brand/BRAND.md`.
 - Where it appears: the slash mark at the top of the desktop rail, the wordmark in the
   phone app bar, the boot loader, Settings, empty states, favicon and app icons.
+  The tab icon (`web/icons/favicon.svg`) switches to a white tile in light mode; the
+  iPhone icon (`icon-180.png`) must stay a full opaque square (iOS rounds it).
   The progress bar uses the three sector colours.
 - Don't redraw the logo in code or re-set it in a font; use the SVG files. If the logo
   changes, regenerate with `brand/build_logo.py` and copy the SVGs into `web/brand/`.
