@@ -7,7 +7,8 @@ name: Refresh race data
 #  - Every Monday, and on demand, a full refresh: current season plus photos, logos,
 #    new circuits and Wikipedia info.
 # A commit is made only when real data changed (a new timestamp alone doesn't count),
-# and Vercel redeploys automatically from the push.
+# and Vercel redeploys automatically from the push. If the season build runs out of
+# time, whatever finished is still committed and the next run carries on from there.
 on:
   schedule:
     - cron: "17 */3 * * *"   # check for new data
@@ -23,13 +24,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: refresh-data
+  group: refresh-data-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -46,8 +47,10 @@ jobs:
           else echo "run=none" >> "$GITHUB_OUTPUT"; fi
       - if: steps.plan.outputs.run != 'none'
         run: pip install requests==2.32.3 "numpy>=1.26,<3"
-      - name: Build current season
+      - name: Build seasons
         if: steps.plan.outputs.run != 'none'
+        timeout-minutes: 270
+        continue-on-error: true
         env:
           SINCE: ${{ inputs.since }}
         run: |
@@ -56,18 +59,24 @@ jobs:
             20[0-9][0-9]) ;;
             *) echo "since must be a year like 2023"; exit 1 ;;
           esac
-          python ingest/build_data.py --since "$SINCE"
+          python -u ingest/build_data.py --since "$SINCE"
       - name: Photos and logos
-        if: steps.plan.outputs.run == 'full'
-        run: python ingest/media.py
+        if: always() && steps.plan.outputs.run == 'full'
+        timeout-minutes: 40
+        continue-on-error: true
+        run: python -u ingest/media.py
       - name: New circuits (existing ones are kept)
-        if: steps.plan.outputs.run == 'full'
-        run: python ingest/circuits.py
+        if: always() && steps.plan.outputs.run == 'full'
+        timeout-minutes: 20
+        continue-on-error: true
+        run: python -u ingest/circuits.py
       - name: Bios, team facts and car specs for anything new
-        if: steps.plan.outputs.run == 'full'
-        run: python ingest/wiki_info.py
+        if: always() && steps.plan.outputs.run == 'full'
+        timeout-minutes: 20
+        continue-on-error: true
+        run: python -u ingest/wiki_info.py
       - name: Commit data
-        if: steps.plan.outputs.run != 'none'
+        if: always() && steps.plan.outputs.run != 'none'
         run: |
           # meta.json gets a fresh timestamp on every run; keep it only alongside real changes
           if [ -z "$(git status --porcelain web/data | grep -v 'web/data/meta.json$')" ]; then

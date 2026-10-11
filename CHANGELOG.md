@@ -18,10 +18,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   Every 3 hours a quick check asks whether race results, qualifying or recent lap
   telemetry are out that the app doesn't have yet, and rebuilds the season only
   when they are. The Monday full refresh still runs.
+- The 2026 cars now have chassis names, so Ferrari, Racing Bulls, Alpine and
+  Williams get photos and spec sheets, and a car photo is only marked as checked
+  when its Wikipedia article is about that exact model.
+- Race weekends now store session times (practice, sprint, qualifying, race) for
+  the upcoming-race view.
 - Manual data refresh can start from an earlier season (enter `2023` to fill in
   the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- Long data refreshes save their progress: if building seasons runs out of time,
+  everything that finished is still committed and the next run carries on. Data
+  files are written safely so a cut-off run never leaves a broken file.
 - Data refreshes only commit when data actually changed, so quiet runs no longer
   create a commit and a Vercel deploy just for a new timestamp.
 - Driver profile layout: rating and points side by side, then profile and career

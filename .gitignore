@@ -4,3 +4,4 @@ __pycache__/
 .vercel
 dist/
 ingest/.preview-cache/
+*.tmp

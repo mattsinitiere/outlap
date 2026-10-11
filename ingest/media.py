@@ -184,7 +184,10 @@ def main():
             title = search_title(name + " Formula One car") if name else \
                 search_title(f"{c['name']} {y} Formula One car")
             if title:
-                wanted[(str(y), cid)] = (name or title, title, bool(name))
+                # a known chassis only counts as checked if the article is about that model
+                model = re.sub(r"[^a-z0-9]", "", name.split()[-1].lower()) if name else ""
+                sure = bool(name) and model in re.sub(r"[^a-z0-9]", "", title.lower())
+                wanted[(str(y), cid)] = (name or title, title, sure)
     # A search hit already used by a known chassis is another season's car: drop it
     known_titles = {t for (_, t, k) in wanted.values() if k}
     wanted = {key: v for key, v in wanted.items() if v[2] or v[1] not in known_titles}
