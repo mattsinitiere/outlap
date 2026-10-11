@@ -132,6 +132,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   breakdown, then a full-width car card.
 
 ### Fixed
+- Letters with tails (g, p, y, j) are no longer cut off at the bottom of circuit card titles,
+  driver card names, Home's at-a-glance names, big news headlines and the telemetry driver
+  slots. The display font hangs below its tight line height, and truncated text was hiding it.
 - Clicking a race in the Races list works again. On the plain Races address (no season in
   it) a click changed nothing; the address now always names the season and race.
 - A single slow answer from Jolpica no longer stops the whole data refresh; it waits and

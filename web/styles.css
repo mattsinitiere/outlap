@@ -1026,3 +1026,9 @@ table.cons tr.on td { background: var(--soft); }
 .medal.m1 { background: linear-gradient(180deg, #F7D774, #D9A522); }
 .medal.m2 { background: linear-gradient(180deg, #E9ECF1, #B3BAC5); color: #2B313B; }
 .medal.m3 { background: linear-gradient(180deg, #E7B184, #B97436); color: #3B1F08; }
+
+/* Big Shoulders' descenders (g, p, y, j) hang below a tight line box, and truncated text
+   (ellipsis or line clamp) hides that overflow; give truncated display text room below */
+.tcard .bd b, .dcard .bot .nm b, .glance b, .tp-slot b { line-height: 1.22; }
+.nw-big .nw-t { line-height: 1.2; }
+.clamp1, .clamp2, .nw-t { padding-bottom: .08em; }

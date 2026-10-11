@@ -247,6 +247,10 @@ the formula, update this table and the explanation text on the driver profile.
 "UX pass" and "more info blocks" banners). When changing a rule, search the whole
 file for the selector first. Consolidating the layers is a welcome cleanup.
 
+**Descenders:** Big Shoulders' g, p, y and j hang below a tight line box. Any display-font
+text that truncates (ellipsis, `clamp1`/`clamp2`, line clamp) needs `line-height` of about 1.2,
+or its letters get cut off at the bottom.
+
 **Hover:** put every `:hover` rule inside `@media (hover: hover)` and exclude selected
 states (`:not(.on)`, `:not([aria-current="true"])`). Phones keep the last tapped
 element in `:hover`, so a hover style that beats a selected style makes it vanish.
