@@ -14,8 +14,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   and a column in the drivers' championship. Drivers can be sorted by rating.
 - Flags instead of nationality words on driver profiles, driver cards and team pages.
 - Legend on the Grid to Finish chart (solid line Finished, dashed line Retired).
+- Data now updates within a few hours of new results instead of only on Mondays.
+  Every 3 hours a quick check asks whether race results, qualifying or recent lap
+  telemetry are out that the app doesn't have yet, and rebuilds the season only
+  when they are. The Monday full refresh still runs.
+- Manual data refresh can start from an earlier season (enter `2023` to fill in
+  the missing 2023–2025 OpenF1 telemetry).
 
 ### Changed
+- Data refreshes only commit when data actually changed, so quiet runs no longer
+  create a commit and a Vercel deploy just for a new timestamp.
 - Driver profile layout: rating and points side by side, then profile and career
   breakdown, then a full-width car card.
 

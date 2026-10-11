@@ -27,7 +27,8 @@ drivers, teams, cars, circuits, races and standings.
 
 - Static site in `web/` (plain HTML/CSS/JS, **no build step**), deployed on Vercel.
 - Python scripts in `ingest/` build JSON files into `web/data/`.
-- A GitHub Action refreshes data every Monday and commits `web/data`.
+- A GitHub Action checks for new data every 3 hours (rebuilding the current season when
+  something new is out), does a full refresh every Monday, and commits `web/data`.
 
 ## Repo layout
 
@@ -50,8 +51,9 @@ ingest/
   wiki_info.py        Driver bios, team facts, car spec sheets and galleries → info.json
   cars.json           Chassis name per team and season (edit to fix a car photo or spec match)
   build_preview.py    Bundles web/ + data into one HTML file with Commons photos and brand SVGs embedded
+  check_new.py        Cheap stdlib-only check for new results, qualifying or recent missing telemetry
 .github/workflows/
-  refresh-data.yml    Monday 10:00 UTC data refresh
+  refresh-data.yml    Check every 3 h (:17), full refresh Monday 10:00 UTC, manual run with optional `since`
   changelog-check.yml Fails code changes that skip CHANGELOG.md
 ```
 
@@ -84,7 +86,21 @@ python ingest/wiki_info.py                  # --force [--keep-drivers]
 
 cd web && python -m http.server 8000        # run locally
 python ingest/build_preview.py preview.html # single-file preview
+python ingest/check_new.py                  # anything new on Jolpica/OpenF1? (what the 3-hourly job runs)
 ```
+
+### Automatic refresh (`refresh-data.yml`)
+
+- **Every 3 hours:** `check_new.py` compares the current season with Jolpica (schedule
+  size, result rows, latest qualifying round) and flags races from the last 14 days that
+  still lack OpenF1 telemetry. Only then does it run `build_data.py --since <this year>`.
+- **Monday 10:00 UTC and manual runs:** full refresh (season + media, circuits, wiki info).
+  A manual run's `since` input rebuilds from an earlier season, e.g. `2023` to backfill
+  OpenF1 telemetry; it's resumable, so re-run it if it hits the 2-hour timeout.
+- A commit happens only if something besides `meta.json`'s timestamp changed, so quiet
+  runs don't trigger Vercel deploys. Runs share a concurrency group and never overlap.
+- Scheduled runs only fire from the default branch (`main`), and GitHub can start
+  them late or skip them when busy.
 
 There are no automated tests yet. Verify UI changes by loading the app at
 desktop (1400 px) and phone (390 px) widths, checking every page you touched,

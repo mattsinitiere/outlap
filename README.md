@@ -48,7 +48,7 @@ down there too. Settings are remembered on each device.
 | What | Source | Notes |
 |---|---|---|
 | Results, standings, schedule | Jolpica | Free |
-| Lap telemetry, sectors, speed traps, 2023+ | OpenF1 | Free for past sessions. **OpenF1 blocks all free access while any F1 session is live**, so refresh outside race weekends |
+| Lap telemetry, sectors, speed traps, 2023+ | OpenF1 | Free for past sessions. **OpenF1 blocks all free access while any F1 session is live**; the automatic refresh retries after the session |
 | Telemetry 2018–2022 | FastF1 | F1's archive blocks cloud IPs; run the backfill on your own computer |
 | Driver headshots | OpenF1 (official, 2023+) with Wikipedia/Wikimedia Commons photos as fallback | Official headshots linked for personal use |
 | Team logos | formula1.com logo files, 2019–2025 | Linked for personal use; teams without one get a team-colour badge |
@@ -76,8 +76,9 @@ ingest/
   cars.json            Chassis name per team and season (edit to fix a photo)
   telemetry.py         Resampling and g-force estimates
   build_preview.py     Bundles everything into one HTML file for a quick look
+  check_new.py         Quick check for new results/telemetry (used by the auto refresh)
 web/                   The app (static files, no build step)
-.github/workflows/refresh-data.yml   Monday refresh
+.github/workflows/refresh-data.yml   Auto refresh (3-hourly check, Monday full run)
 vercel.json
 ```
 
@@ -104,8 +105,11 @@ CI blocks code changes that skip it.
    ```
 3. **Vercel:** in a personal account, Add New → Project → import the repo,
    framework "Other", no build command. Every push redeploys.
-4. **Weekly refresh:** GitHub → Settings → Actions → General → Workflow
-   permissions → Read and write. Runs Mondays 10:00 UTC, or by hand from Actions.
+4. **Automatic refresh:** GitHub → Settings → Actions → General → Workflow
+   permissions → Read and write. Every 3 hours it checks for new results,
+   qualifying and telemetry and rebuilds the season only when something is new;
+   Mondays 10:00 UTC it does a full refresh. Run it by hand from Actions → Refresh
+   race data; enter `2023` as the first season to backfill all OpenF1 telemetry.
 5. **Phone:** open the Vercel URL in Safari → Share → Add to Home Screen.
 
 Local preview: `cd web && python -m http.server 8000`.
