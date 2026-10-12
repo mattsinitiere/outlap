@@ -198,13 +198,18 @@ def main():
     wanted = {key: v for key, v in wanted.items() if v[2] or v[1] not in known_titles}
     imgs = page_images(sorted({t for _, t, _ in wanted.values()}), 900)
     meta_for = credits([v[1] for v in imgs.values()])
-    media["cars"] = {}
+    previous, media["cars"] = media.get("cars", {}), {}
     for (y, cid), (name, title, known) in wanted.items():
         if title in imgs:
             url, f = imgs[title]
             media["cars"].setdefault(y, {})[cid] = dict(
                 name=name, article=title, img=url, verified=known, **meta_for.get(f, {}))
-    print(f"Car photos: {sum(len(v) for v in media['cars'].values())} team-seasons")
+    kept = 0  # a search or image lookup that failed this run (rate limits, timeouts) keeps last run's photo
+    for y, row in previous.items():
+        for cid, k in row.items():
+            if k.get("img") and not media["cars"].get(y, {}).get(cid, {}).get("img"):
+                media["cars"].setdefault(y, {})[cid] = {key: v for key, v in k.items() if key != "official"}; kept += 1
+    print(f"Car photos: {sum(len(v) for v in media['cars'].values())} team-seasons ({kept} kept from the last run)")
 
     # Official car images per team and season (formula1.com, personal use)
     n_off = 0

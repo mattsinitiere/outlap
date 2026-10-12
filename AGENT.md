@@ -73,7 +73,7 @@ ingest/
 | `meta.json` | Seasons available, generation time |
 | `season_YYYY.json` | Races (results, pole, fastest laps, `time` and `sessions` in UTC), drivers, constructors, standings, `openf1` headshots/colours |
 | `telemetry/index.json`, `telemetry/YYYY_RR.json` | Fastest race lap per driver: distance-aligned arrays `d x y spd thr brk gear rpm gx gy`, lap, sectors, headshot |
-| `laps/index.json`, `laps/YYYY_RR.json` | Per race: `laps` count, `drivers[id]` with `t` lap times (s), `p` positions, `pit` [[lap, pit-lane s]], and from 2023 `st` stints [[compound, firstLap, lastLap, ageAtStart]], `sec` [s1[], s2[], s3[]], `trap` speeds; `flags` [[SC/VSC/RED, firstLap, lastLap]]; `of1` ok/none once OpenF1 was tried, `ff1` ok once FastF1 extras were merged (2018–2022; extras waiting for their lap file sit in `laps/fastf1/` and `laps.py` merges them). Index lists races with `tyres`/`flags` |
+| `laps/index.json`, `laps/YYYY_RR.json` | Per race: `laps` count, `drivers[id]` with `t` lap times (s), `p` positions, `pit` [[lap, pit-lane s]], and from 2023 `st` stints [[compound, firstLap, lastLap, ageAtStart]], `sec` [s1[], s2[], s3[]], `trap` speeds; `flags` [[SC/VSC/RED, firstLap, lastLap]]; `of1` ok/none once OpenF1 was tried (with `of1v`, the parser version; raising `OF1_VERSION` in laps.py refetches the extras once), `ff1` ok once FastF1 extras were merged (2018–2022; extras waiting for their lap file sit in `laps/fastf1/` and `laps.py` merges them). Index lists races with `tyres`/`flags` |
 | `trends.json` | Per circuit per year: pole, fastest lap, winner, speed trap |
 | `media.json` | `drivers` (Commons photo, official headshot, gallery), `logos[cid][year]`, `cars[year][cid]` |
 | `circuits.json` | Outline `x/y` (decimetres, F1 frame), rotation, corners, elevation per point, facts, about, photos |
@@ -275,7 +275,8 @@ element in `:hover`, so a hover style that beats a selected style makes it vanis
 | X / Instagram | Not used | X needs a paid API plan, Instagram has no public API. Ask before adding a paid service |
 
 Known gaps: tyre compounds and official Safety Car periods start in 2023 (earlier SC laps are estimated);
-pit stop times are pit-lane time, not stationary time; g-forces read low (4 Hz data); brake is on/off only; corner names exist
+pit stop times are pit-lane time, not stationary time (a red-flag suspension shows as a very long stop, labelled Red Flag);
+OpenF1 stints sometimes disagree with Jolpica's pit laps (shown as OpenF1 has them); OpenF1 has no car data for some races (Monaco 2026); g-forces read low (4 Hz data); brake is on/off only; corner names exist
 only for Monza (`CORNERS` in app.js); some Wikipedia infobox fields are missing for
 some cars and teams. News tags are name matches (a common surname like Russell can
 over-match) plus the driver or team a Google search was run for. Contract terms
